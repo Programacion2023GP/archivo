@@ -1,0 +1,147 @@
+
+.bg {
+            margin: 0;
+            padding: 0;
+            position: relative;
+            width: 100vw;
+            height: 100vh;
+            color: #B8B6AF;
+            overflow: hidden;
+        }
+
+        /* Imagen de fondo como tapiz sin márgenes */
+        .bg::before {
+            background-image: url('./assets/background.png');
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-repeat: repeat;
+            background-size: 350px 350px;
+            background-position: 0 0; /* Sin offset inicial */
+            z-index: 1;
+            filter: brightness(0.7);
+        }
+
+        /* Gradiente encima de la imagen */
+        .bg::after {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+background: linear-gradient(135deg, rgba(155,34,66,0.7) 50%, rgba(101,29,50,0.6) 70%);
+            opacity: 0.6;
+            z-index: 2;
+        }
+
+        /* Contenido encima de todo */
+        .bg > * {
+            position: relative;
+            z-index: 3;
+        }
+
+
+
+
+.class_cp{
+    background-color: #9ca3af !important;
+}
+.class_au{
+    background-color: #000000 !important;
+    color:white !important;
+   
+}
+.class_vobo{
+    background-color: #0F766E !important;
+    color:white !important;
+}
+.class_as{
+    background-color: #a855f7 !important;
+   
+}
+.class_co{
+    background-color: #f97316 !important;
+   
+}
+.class_oc{
+    background-color: #ec4899 !important;
+   
+}
+.class_rec{
+    background-color: #ef4444 !important;
+   
+}
+.class_ca{
+    background-color: #ef4444 !important;
+   
+}
+.class_re{
+    background-color: #06b6d4 !important;
+   
+}
+.class_su{
+    background-color: #8bce26 !important;
+   
+}
+.provedor_new {
+    background-color: #edff9f !important; /* Amarillo claro */
+}
+
+.provedor_accepted {
+    background-color: #a8e6a1 !important; /* Verde claro */
+}
+
+.provedor_canceled {
+    background-color: #ffb3b3 !important; /* Rojo suave */
+}
+
+/* Establecer la animación de movimiento de la bolita */
+@import "tailwindcss";
+
+@layer components {
+  .presidencia {
+    @apply bg-[#9B2242] border border-[#651D32] text-white ;
+  }
+  
+  
+}
+/* Mejoras para el scroll suave */
+.smooth-scroll {
+   -webkit-overflow-scrolling: touch;
+   scroll-behavior: smooth;
+}
+
+/* Mejoras para el arrastre táctil */
+.touch-pan-y {
+   touch-action: pan-y;
+}
+
+/* Safe areas mejorados para diferentes dispositivos */
+.safe-area-bottom {
+   padding-bottom: env(safe-area-inset-bottom);
+}
+
+/* Optimizaciones de rendimiento para animaciones */
+.optimize-performance {
+   transform: translateZ(0);
+   backface-visibility: hidden;
+   perspective: 1000px;
+}
+
+/* Mejoras visuales para el indicador de arrastre */
+.drag-indicator {
+   background: linear-gradient(135deg, #3B82F6, #1D4ED8);
+   box-shadow: 0 4px 12px rgba(59, 130, 246, 0.3);
+}
+
+/* Estados de feedback táctil mejorados */
+@media (max-width: 768px) {
+   .mobile-tap-feedback:active {
+      transform: scale(0.98);
+      transition: transform 0.1s ease;
+   }
+}
