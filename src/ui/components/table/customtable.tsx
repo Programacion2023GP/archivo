@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useMemo } from "react";
+import React, { useState, useEffect, useRef, useMemo, useImperativeHandle, forwardRef } from "react";
 import * as XLSX from "xlsx";
 import { motion, AnimatePresence } from "framer-motion";
 import {
@@ -73,6 +73,44 @@ interface GroupConfig {
    direction: "asc" | "desc";
 }
 
+// ==================== REF HANDLE ====================
+export interface CustomTableHandle<T extends object = any> {
+   /** Limpia todos los filtros, búsqueda global y orden */
+   clearAllFilters: () => void;
+   /** Limpia solo los filtros de columna */
+   clearColumnFilters: () => void;
+   /** Limpia la búsqueda global */
+   clearGlobalFilter: () => void;
+   /** Limpia todas las filas seleccionadas (checkboxes a 0) */
+   clearSelection: () => void;
+   /** Devuelve las filas actualmente seleccionadas */
+   getSelectedRows: () => T[];
+   /** Devuelve las filas filtradas/ordenadas actualmente visibles */
+   getFilteredRows: () => T[];
+   /** Cambia el tema */
+   setTheme: (theme: Theme) => void;
+   /** Cambia la densidad */
+   setDensity: (density: DensityMode) => void;
+   /** Cambia la vista */
+   setViewMode: (mode: ViewMode) => void;
+   /** Cambia la página */
+   goToPage: (page: number) => void;
+   /** Va a la primera página */
+   goToFirstPage: () => void;
+   /** Va a la última página */
+   goToLastPage: () => void;
+   /** Exporta a Excel */
+   exportExcel: (onlySelected?: boolean) => void;
+   /** Exporta a CSV */
+   exportCSV: (onlySelected?: boolean) => void;
+   /** Exporta a JSON */
+   exportJSON: (onlySelected?: boolean) => void;
+   /** Activa/desactiva pantalla completa */
+   toggleFullscreen: () => void;
+   /** Fuerza el refresco visual (útil tras mutaciones externas) */
+   refresh: () => void;
+}
+
 export interface PropsTable<T extends object> {
    data: T[];
    paginate: number[];
@@ -92,8 +130,7 @@ export interface PropsTable<T extends object> {
    childrenField?: keyof T;
    rowIdField?: keyof T;
    indentSize?: number;
-   enableGroupSelection?: boolean; // nuevo prop
-
+   enableGroupSelection?: boolean;
    enableColumnReorder?: boolean;
    enableColumnResize?: boolean;
    enableRowSelection?: boolean;
@@ -149,25 +186,31 @@ const makeTokens = (theme: Theme) => ({
 
 // ==================== SUBCOMPONENTES PARA FILTROS DE FECHA ====================
 const DateFilterInput = ({ field, value, setColFilter, C }) => {
-   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+   const inputRef = useRef<HTMLInputElement>(null);
 
-   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-      const newVal = e.target.value;
-      if (timerRef.current) clearTimeout(timerRef.current);
-      timerRef.current = setTimeout(() => {
-         setColFilter(field, newVal);
-      }, 300);
+   // Resetea el DOM solo cuando se limpia el filtro externamente
+   useEffect(() => {
+      if (value === "" && inputRef.current) {
+         inputRef.current.value = "";
+      }
+   }, [value]);
+
+   const commit = (val: string) => {
+      setColFilter(field, val);
    };
 
    return (
       <input
+         ref={inputRef}
          type="date"
          defaultValue={value}
-         onChange={handleChange}
+         // onBlur: filtra solo cuando el usuario sale del input (confirmó la fecha)
+         onBlur={(e) => commit(e.target.value)}
+         // Enter: confirma inmediatamente
          onKeyDown={(e) => {
             if (e.key === "Enter") {
-               if (timerRef.current) clearTimeout(timerRef.current);
-               setColFilter(field, (e.target as HTMLInputElement).value);
+               commit((e.target as HTMLInputElement).value);
+               (e.target as HTMLInputElement).blur();
             }
          }}
          style={{
@@ -244,46 +287,49 @@ const DateRangeFilterInput = <T extends object>({
    );
 };
 
-// ==================== COMPONENTE PRINCIPAL ====================
-const CustomTable = <T extends object>({
-   data,
-   columns: initialColumns,
-   paginate,
-   actions,
-   loading,
-   error,
-   headerActions,
-   striped = true,
-   hoverable = true,
-   cardTitleField,
-   conditionExcel,
-   defaultView = "table",
-   enableViewToggle = true,
-   title,
-   subtitle,
-   childrenField,
-   indentSize = 20,
-   rowIdField,
-   enableColumnReorder = true,
-   enableColumnResize = true,
-   enableRowSelection = false,
-   enableGroupBy = true,
-   enableAggregations = true,
-   enableSavedFilters = true,
-   enableFullscreen = true,
-   enableThemeToggle = true,
-   enableExportOptions = true,
-   enableColumnVisibility = true,
-   enableDensityControl = true,
-   enableInlineEdit = false,
-   enableRowPinning = false,
-   onRowSelect,
-   onCellEdit,
-enableGroupSelection= false,
-   defaultTheme = "light",
-   defaultDensity = "comfortable",
-   storageKey
-}: PropsTable<T>) => {
+// ==================== COMPONENTE PRINCIPAL (forwardRef) ====================
+const CustomTableInner = <T extends object>(
+   {
+      data,
+      columns: initialColumns,
+      paginate,
+      actions,
+      loading,
+      error,
+      headerActions,
+      striped = true,
+      hoverable = true,
+      cardTitleField,
+      conditionExcel,
+      defaultView = "table",
+      enableViewToggle = true,
+      title,
+      subtitle,
+      childrenField,
+      indentSize = 20,
+      rowIdField,
+      enableColumnReorder = true,
+      enableColumnResize = true,
+      enableRowSelection = false,
+      enableGroupBy = true,
+      enableAggregations = true,
+      enableSavedFilters = true,
+      enableFullscreen = true,
+      enableThemeToggle = true,
+      enableExportOptions = true,
+      enableColumnVisibility = true,
+      enableDensityControl = true,
+      enableInlineEdit = false,
+      enableRowPinning = false,
+      onRowSelect,
+      onCellEdit,
+      enableGroupSelection = false,
+      defaultTheme = "light",
+      defaultDensity = "comfortable",
+      storageKey
+   }: PropsTable<T>,
+   ref: React.Ref<CustomTableHandle<T>>
+) => {
    // ========== ESTADOS ==========
    const [currentPage, setCurrentPage] = useState(1);
    const [rowsPerPage, setRowsPerPage] = useState(paginate[0]);
@@ -315,10 +361,9 @@ enableGroupSelection= false,
    const [showStats, setShowStats] = useState(false);
    const [flashRow, setFlashRow] = useState<string | null>(null);
    const [resizingCol, setResizingCol] = useState<string | null>(null);
+   // ── selectAll se resetea automáticamente cuando selectedRows se vacía ──
    const [selectAll, setSelectAll] = useState(false);
    const [showGroupPanel, setShowGroupPanel] = useState(false);
-
-   // NUEVO: Estado para filas expandidas (columnas con visibility="expanded")
    const [rowExpanded, setRowExpanded] = useState<Set<string>>(new Set());
 
    const showExpandCol = Boolean(childrenField) || enableRowSelection;
@@ -341,132 +386,6 @@ enableGroupSelection= false,
       spacious: { cell: "18px 20px", header: "18px 20px 0", filterMargin: "10px 12px 12px" }
    }[density];
 
-   // ========== EFECTOS ==========
-   useEffect(() => {
-      const handleClickOutside = (e: MouseEvent) => {
-         if (showColumnManager || showExportMenu || showFilterLibrary) {
-            const target = e.target as Node;
-            const isClickInside =
-               (showColumnManager && columnManagerRef.current?.contains(target)) ||
-               (showExportMenu && exportMenuRef.current?.contains(target)) ||
-               (showFilterLibrary && filterLibraryRef.current?.contains(target));
-            if (!isClickInside) {
-               setShowColumnManager(false);
-               setShowExportMenu(false);
-               setShowFilterLibrary(false);
-            }
-         }
-      };
-      document.addEventListener("mousedown", handleClickOutside);
-      return () => document.removeEventListener("mousedown", handleClickOutside);
-   }, [showColumnManager, showExportMenu, showFilterLibrary]);
-
-   useEffect(() => {
-      const h = (e: KeyboardEvent) => {
-         if (e.key === "Escape") {
-            setShowColumnManager(false);
-            setShowExportMenu(false);
-            setShowFilterLibrary(false);
-            setShowGroupPanel(false);
-            setShowStats(false);
-         }
-      };
-      window.addEventListener("keydown", h);
-      return () => window.removeEventListener("keydown", h);
-   }, []);
-
-   useEffect(() => {
-      if (!containerRef.current) return;
-      if (isFullscreen) {
-         document.body.style.overflow = "hidden";
-         containerRef.current.style.position = "fixed";
-         containerRef.current.style.inset = "0";
-         containerRef.current.style.zIndex = "9999";
-         containerRef.current.style.borderRadius = "0";
-      } else {
-         document.body.style.overflow = "";
-         containerRef.current.style.position = "";
-         containerRef.current.style.inset = "";
-         containerRef.current.style.zIndex = "";
-         containerRef.current.style.borderRadius = C.r12;
-      }
-   }, [isFullscreen]);
-
-   // Persistencia en localStorage (incluye filtros activos)
-   useEffect(() => {
-      if (!storageKey) return;
-      try {
-         const saved = localStorage.getItem(`ultratbl_${storageKey}`);
-         if (saved) {
-            const p = JSON.parse(saved);
-            if (p.hiddenColumns) setHiddenColumns(new Set(p.hiddenColumns));
-            if (p.columnWidths) setColumnWidths(p.columnWidths);
-            if (p.theme) setTheme(p.theme);
-            if (p.density) setDensity(p.density);
-            if (p.savedFilters) setSavedFilters(p.savedFilters);
-            if (p.rowsPerPage) setRowsPerPage(p.rowsPerPage);
-            // Restaurar filtros activos
-            if (p.globalFilter !== undefined) setGlobalFilter(p.globalFilter);
-            if (p.columnFilters) setColumnFilters(p.columnFilters);
-            if (p.sortConfig) setSortConfig(p.sortConfig);
-            if (p.currentPage) setCurrentPage(p.currentPage);
-         }
-      } catch {}
-   }, [storageKey]);
-
-   useEffect(() => {
-      if (!storageKey) return;
-      try {
-         localStorage.setItem(
-            `ultratbl_${storageKey}`,
-            JSON.stringify({
-               hiddenColumns: [...hiddenColumns],
-               columnWidths,
-               theme,
-               density,
-               savedFilters,
-               rowsPerPage,
-               // Guardar filtros activos
-               globalFilter,
-               columnFilters,
-               sortConfig: { field: sortConfig.field ? String(sortConfig.field) : null, direction: sortConfig.direction },
-               currentPage
-            })
-         );
-      } catch {}
-   }, [hiddenColumns, columnWidths, theme, density, savedFilters, rowsPerPage, globalFilter, columnFilters, sortConfig, currentPage]);
-
-   useEffect(() => {
-      setCurrentPage(1);
-   }, [data]);
-
-   useEffect(() => {
-      if (onRowSelect) {
-         const selRows = safeData.filter((_, i) => selectedRows.has(getRowId(_, 0, i)));
-         onRowSelect(selRows);
-      }
-   }, [selectedRows]);
-
-   // Resize
-   useEffect(() => {
-      const onMove = (e: MouseEvent) => {
-         if (!resizeRef.current) return;
-         const delta = e.clientX - resizeRef.current.startX;
-         const newW = Math.max(80, resizeRef.current.startW + delta);
-         setColumnWidths((p) => ({ ...p, [resizeRef.current!.col]: newW }));
-      };
-      const onUp = () => {
-         resizeRef.current = null;
-         setResizingCol(null);
-      };
-      window.addEventListener("mousemove", onMove);
-      window.addEventListener("mouseup", onUp);
-      return () => {
-         window.removeEventListener("mousemove", onMove);
-         window.removeEventListener("mouseup", onUp);
-      };
-   }, []);
-
    // ========== FILTRADO DE COLUMNAS ==========
    const allVisibleColumns = useMemo(() => {
       return columns.filter((col) => {
@@ -476,13 +395,8 @@ enableGroupSelection= false,
       });
    }, [columns, hiddenColumns]);
 
-   const normalColumns = useMemo(() => {
-      return allVisibleColumns.filter((col) => col.visibility !== "expanded");
-   }, [allVisibleColumns]);
-
-   const expandedColumns = useMemo(() => {
-      return allVisibleColumns.filter((col) => col.visibility === "expanded");
-   }, [allVisibleColumns]);
+   const normalColumns = useMemo(() => allVisibleColumns.filter((col) => col.visibility !== "expanded"), [allVisibleColumns]);
+   const expandedColumns = useMemo(() => allVisibleColumns.filter((col) => col.visibility === "expanded"), [allVisibleColumns]);
 
    // ========== FILTRADO DE DATOS ==========
    const filteredData = useMemo(() => {
@@ -604,24 +518,161 @@ enableGroupSelection= false,
    }, [filteredData, normalColumns, enableAggregations]);
 
    // ========== UTILIDADES ==========
-   const getRowId = (row: Record<string, any>, _: number, index: number) => {
-      return row.id ?? String(index);
-   };
+   const getRowId = (row: Record<string, any>, _: number, index: number) => row.id ?? String(index);
 
-   const pinnedRowsData = useMemo(() => {
-      return sortedData.filter((row, i) => pinnedRows.has(getRowId(row, 0, i)));
-   }, [sortedData, pinnedRows]);
+   const pinnedRowsData = useMemo(() => sortedData.filter((row, i) => pinnedRows.has(getRowId(row, 0, i))), [sortedData, pinnedRows]);
 
-   const flatData = groupedData ? sortedData : sortedData;
+   const flatData = sortedData;
    const totalRows = flatData.length;
    const totalPages = Math.ceil(totalRows / rowsPerPage);
    const startIndex = (currentPage - 1) * rowsPerPage;
    const currentRows = flatData.slice(startIndex, startIndex + rowsPerPage);
 
-   // Obtener las filas seleccionadas (completo, no solo de la página actual)
-   const selectedData = useMemo(() => {
-      return flatData.filter((row, i) => selectedRows.has(getRowId(row, 0, i)));
-   }, [flatData, selectedRows]);
+   const selectedData = useMemo(() => flatData.filter((row, i) => selectedRows.has(getRowId(row, 0, i))), [flatData, selectedRows]);
+
+   // ========== RESET HELPERS ==========
+   /** Vacía selección y sincroniza el checkbox "seleccionar todo" */
+   const resetSelection = () => {
+      setSelectedRows(new Set());
+      setSelectAll(false);
+   };
+
+   // ── Cuando cambia el dataset, resetear selección ──
+   useEffect(() => {
+      resetSelection();
+      setCurrentPage(1);
+   }, [data]);
+
+   // ── Sincronizar selectAll con el estado real de selectedRows ──
+   useEffect(() => {
+      if (selectedRows.size === 0) {
+         setSelectAll(false);
+      } else if (currentRows.length > 0 && currentRows.every((r, i) => selectedRows.has(getRowId(r, 0, i)))) {
+         setSelectAll(true);
+      } else {
+         setSelectAll(false);
+      }
+   }, [selectedRows, currentRows]);
+
+   // ========== EFECTOS ==========
+   useEffect(() => {
+      const handleClickOutside = (e: MouseEvent) => {
+         if (showColumnManager || showExportMenu || showFilterLibrary) {
+            const target = e.target as Node;
+            const isClickInside =
+               (showColumnManager && columnManagerRef.current?.contains(target)) ||
+               (showExportMenu && exportMenuRef.current?.contains(target)) ||
+               (showFilterLibrary && filterLibraryRef.current?.contains(target));
+            if (!isClickInside) {
+               setShowColumnManager(false);
+               setShowExportMenu(false);
+               setShowFilterLibrary(false);
+            }
+         }
+      };
+      document.addEventListener("mousedown", handleClickOutside);
+      return () => document.removeEventListener("mousedown", handleClickOutside);
+   }, [showColumnManager, showExportMenu, showFilterLibrary]);
+
+   useEffect(() => {
+      const h = (e: KeyboardEvent) => {
+         if (e.key === "Escape") {
+            setShowColumnManager(false);
+            setShowExportMenu(false);
+            setShowFilterLibrary(false);
+            setShowGroupPanel(false);
+            setShowStats(false);
+         }
+      };
+      window.addEventListener("keydown", h);
+      return () => window.removeEventListener("keydown", h);
+   }, []);
+
+   useEffect(() => {
+      if (!containerRef.current) return;
+      if (isFullscreen) {
+         document.body.style.overflow = "hidden";
+         containerRef.current.style.position = "fixed";
+         containerRef.current.style.inset = "0";
+         containerRef.current.style.zIndex = "9999";
+         containerRef.current.style.borderRadius = "0";
+      } else {
+         document.body.style.overflow = "";
+         containerRef.current.style.position = "";
+         containerRef.current.style.inset = "";
+         containerRef.current.style.zIndex = "";
+         containerRef.current.style.borderRadius = C.r12;
+      }
+   }, [isFullscreen]);
+
+   // Persistencia en localStorage
+   useEffect(() => {
+      if (!storageKey) return;
+      try {
+         const saved = localStorage.getItem(`ultratbl_${storageKey}`);
+         if (saved) {
+            const p = JSON.parse(saved);
+            if (p.hiddenColumns) setHiddenColumns(new Set(p.hiddenColumns));
+            if (p.columnWidths) setColumnWidths(p.columnWidths);
+            if (p.theme) setTheme(p.theme);
+            if (p.density) setDensity(p.density);
+            if (p.savedFilters) setSavedFilters(p.savedFilters);
+            if (p.rowsPerPage) setRowsPerPage(p.rowsPerPage);
+            if (p.globalFilter !== undefined) setGlobalFilter(p.globalFilter);
+            if (p.columnFilters) setColumnFilters(p.columnFilters);
+            if (p.sortConfig) setSortConfig(p.sortConfig);
+            if (p.currentPage) setCurrentPage(p.currentPage);
+         }
+      } catch {}
+   }, [storageKey]);
+
+   useEffect(() => {
+      if (!storageKey) return;
+      try {
+         localStorage.setItem(
+            `ultratbl_${storageKey}`,
+            JSON.stringify({
+               hiddenColumns: [...hiddenColumns],
+               columnWidths,
+               theme,
+               density,
+               savedFilters,
+               rowsPerPage,
+               globalFilter,
+               columnFilters,
+               sortConfig: { field: sortConfig.field ? String(sortConfig.field) : null, direction: sortConfig.direction },
+               currentPage
+            })
+         );
+      } catch {}
+   }, [hiddenColumns, columnWidths, theme, density, savedFilters, rowsPerPage, globalFilter, columnFilters, sortConfig, currentPage]);
+
+   useEffect(() => {
+      if (onRowSelect) {
+         const selRows = safeData.filter((_, i) => selectedRows.has(getRowId(_, 0, i)));
+         onRowSelect(selRows);
+      }
+   }, [selectedRows]);
+
+   // Resize
+   useEffect(() => {
+      const onMove = (e: MouseEvent) => {
+         if (!resizeRef.current) return;
+         const delta = e.clientX - resizeRef.current.startX;
+         const newW = Math.max(80, resizeRef.current.startW + delta);
+         setColumnWidths((p) => ({ ...p, [resizeRef.current!.col]: newW }));
+      };
+      const onUp = () => {
+         resizeRef.current = null;
+         setResizingCol(null);
+      };
+      window.addEventListener("mousemove", onMove);
+      window.addEventListener("mouseup", onUp);
+      return () => {
+         window.removeEventListener("mousemove", onMove);
+         window.removeEventListener("mouseup", onUp);
+      };
+   }, []);
 
    // ========== HANDLERS ==========
    const handleSort = (field: keyof T) =>
@@ -638,11 +689,14 @@ enableGroupSelection= false,
       setCurrentPage(1);
    };
    const clearColFilter = (f: string) => setColFilter(f, "");
+
    const clearAll = () => {
       setGlobalFilter("");
       setColumnFilters({});
       setCurrentPage(1);
       setSortConfig({ field: null, direction: null });
+      // ── También resetea checkboxes al limpiar todos los filtros ──
+      resetSelection();
    };
 
    const toggleExpand = (nodeId: string) =>
@@ -659,20 +713,28 @@ enableGroupSelection= false,
          return n;
       });
 
-   const toggleRowExpanded = (rowId: string) => {
+   const toggleRowExpanded = (rowId: string) =>
       setRowExpanded((prev) => {
          const n = new Set(prev);
          n.has(rowId) ? n.delete(rowId) : n.add(rowId);
          return n;
       });
-   };
 
    const handleSelectAll = () => {
       if (selectAll) {
-         setSelectedRows(new Set());
+         // Deseleccionar solo los de la página actual
+         setSelectedRows((prev) => {
+            const n = new Set(prev);
+            currentRows.forEach((r, i) => n.delete(getRowId(r, 0, i)));
+            return n;
+         });
          setSelectAll(false);
       } else {
-         setSelectedRows(new Set(currentRows.map((r, i) => getRowId(r, 0, i))));
+         setSelectedRows((prev) => {
+            const n = new Set(prev);
+            currentRows.forEach((r, i) => n.add(getRowId(r, 0, i)));
+            return n;
+         });
          setSelectAll(true);
       }
    };
@@ -711,6 +773,8 @@ enableGroupSelection= false,
       setColumnFilters(f.columnFilters);
       setSortConfig({ field: f.sortConfig.field as keyof T | null, direction: f.sortConfig.direction });
       setCurrentPage(1);
+      // ── Resetear selección al aplicar un filtro guardado ──
+      resetSelection();
       setShowFilterLibrary(false);
    };
 
@@ -772,7 +836,6 @@ enableGroupSelection= false,
    };
 
    // ========== EXPORT ==========
-   // Funciones de exportación que aceptan un array de datos a exportar
    const exportExcel = (dataToExport: T[]) => {
       const rows = dataToExport.map((row) => {
          const obj: Record<string, any> = {};
@@ -838,6 +901,37 @@ enableGroupSelection= false,
       window.print();
       setShowExportMenu(false);
    };
+
+   // ========== IMPERATIVE HANDLE (REF PÚBLICO) ====================
+   useImperativeHandle(
+      ref,
+      () => ({
+         clearAllFilters: () => clearAll(),
+         clearColumnFilters: () => {
+            setColumnFilters({});
+            setCurrentPage(1);
+         },
+         clearGlobalFilter: () => {
+            setGlobalFilter("");
+            setCurrentPage(1);
+         },
+         clearSelection: () => resetSelection(),
+         getSelectedRows: () => selectedData,
+         getFilteredRows: () => sortedData,
+         setTheme: (t: Theme) => setTheme(t),
+         setDensity: (d: DensityMode) => setDensity(d),
+         setViewMode: (m: ViewMode) => setViewMode(m),
+         goToPage: (page: number) => setCurrentPage(Math.max(1, Math.min(page, totalPages))),
+         goToFirstPage: () => setCurrentPage(1),
+         goToLastPage: () => setCurrentPage(totalPages),
+         exportExcel: (onlySelected = false) => exportExcel(onlySelected ? selectedData : sortedData),
+         exportCSV: (onlySelected = false) => exportCSV(onlySelected ? selectedData : sortedData),
+         exportJSON: (onlySelected = false) => exportJSON(onlySelected ? selectedData : sortedData),
+         toggleFullscreen: () => setIsFullscreen((f) => !f),
+         refresh: () => setColumns((c) => [...c])
+      }),
+      [selectedData, sortedData, totalPages]
+   );
 
    // ========== RENDER FILTER INPUT ==========
    const renderFilterInput = (col: Column<T>) => {
@@ -992,7 +1086,6 @@ enableGroupSelection= false,
 
          return (
             <React.Fragment key={rowId}>
-               {/* Fila normal con columnas normales */}
                <motion.tr
                   onMouseEnter={() => setHoveredRow(rowId)}
                   onMouseLeave={() => setHoveredRow(null)}
@@ -1029,7 +1122,6 @@ enableGroupSelection= false,
                      </td>
                   )}
 
-                  {/* Celdas de columnas normales */}
                   {normalColumns.map((col) => {
                      const fieldStr = String(col.field);
                      const cellKey = `${rowId}-${fieldStr}`;
@@ -1101,7 +1193,6 @@ enableGroupSelection= false,
                      );
                   })}
 
-                  {/* Columna de acciones */}
                   {showActionsCol && (
                      <td style={{ padding: "8px 14px", borderBottom: `1px solid ${C.border}`, textAlign: "right" }} onClick={(e) => e.stopPropagation()}>
                         <div style={{ display: "flex", gap: 4, justifyContent: "flex-end", alignItems: "center" }}>
@@ -1126,7 +1217,6 @@ enableGroupSelection= false,
                   )}
                </motion.tr>
 
-               {/* FILA EXPANDIDA */}
                {isRowExpanded && expandedColumns.length > 0 && (
                   <tr style={{ background: C.surface }}>
                      {showExpandCol && <td style={{ borderBottom: `1px solid ${C.border}` }} />}
@@ -1134,7 +1224,6 @@ enableGroupSelection= false,
                         const fieldStr = String(col.field);
                         const rawVal = String(row[col.field] ?? "");
                         const customStyle = col.conditionalStyle ? col.conditionalStyle(row) : {};
-
                         return (
                            <td
                               key={fieldStr}
@@ -1166,7 +1255,6 @@ enableGroupSelection= false,
                   </tr>
                )}
 
-               {/* Hijos */}
                {isExpanded && renderRows(row[childrenField] as T[], level + 1)}
             </React.Fragment>
          );
@@ -1205,7 +1293,6 @@ enableGroupSelection= false,
                         </th>
                      )}
 
-                     {/* Cabeceras de columnas normales */}
                      {normalColumns.map((col) => {
                         const field = String(col.field);
                         const isSorted = sortConfig.field === col.field;
@@ -1255,7 +1342,6 @@ enableGroupSelection= false,
                                        </span>
                                     )}
                                  </button>
-
                                  {enableGroupBy && col.groupable && (
                                     <button
                                        onClick={() => setGroupBy(groupBy?.field === field ? null : { field, direction: "asc" })}
@@ -1371,8 +1457,6 @@ enableGroupSelection= false,
                   {groupedData
                      ? groupedData.map(([groupKey, groupRows]) => {
                           const gPaged = groupRows.slice(0, rowsPerPage);
-
-                          // ── Lógica de selección de grupo ──
                           const groupRowIds = groupRows.map((r, i) => getRowId(r, 0, i));
                           const allGroupSelected = groupRowIds.every((id) => selectedRows.has(id));
                           const someGroupSelected = groupRowIds.some((id) => selectedRows.has(id));
@@ -1380,13 +1464,8 @@ enableGroupSelection= false,
                           const toggleGroupSelection = () => {
                              setSelectedRows((prev) => {
                                 const next = new Set(prev);
-                                if (allGroupSelected) {
-                                   // deseleccionar todo el grupo
-                                   groupRowIds.forEach((id) => next.delete(id));
-                                } else {
-                                   // seleccionar todo el grupo
-                                   groupRowIds.forEach((id) => next.add(id));
-                                }
+                                if (allGroupSelected) groupRowIds.forEach((id) => next.delete(id));
+                                else groupRowIds.forEach((id) => next.add(id));
                                 return next;
                              });
                           };
@@ -1404,7 +1483,6 @@ enableGroupSelection= false,
                                       }}
                                    >
                                       <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                                         {/* ── Checkbox de grupo (nuevo) ── */}
                                          {enableGroupSelection && (
                                             <input
                                                type="checkbox"
@@ -1413,13 +1491,7 @@ enableGroupSelection= false,
                                                   if (el) el.indeterminate = someGroupSelected && !allGroupSelected;
                                                }}
                                                onChange={toggleGroupSelection}
-                                               style={{
-                                                  accentColor: C.ruby,
-                                                  cursor: "pointer",
-                                                  width: 14,
-                                                  height: 14,
-                                                  flexShrink: 0
-                                               }}
+                                               style={{ accentColor: C.ruby, cursor: "pointer", width: 14, height: 14, flexShrink: 0 }}
                                             />
                                          )}
                                          <span style={{ fontWeight: 800, fontSize: 12, color: C.ruby }}>
@@ -1436,7 +1508,6 @@ enableGroupSelection= false,
                                             )}
                                             )
                                          </span>
-                                         {/* Botón rápido "Seleccionar grupo" */}
                                          {enableGroupSelection && !allGroupSelected && (
                                             <button
                                                onClick={toggleGroupSelection}
@@ -1726,22 +1797,9 @@ enableGroupSelection= false,
       <motion.div
          initial={{ opacity: 0, y: 20 }}
          animate={{ opacity: 1, y: 0 }}
-         style={{
-            display: "flex",
-            flexDirection: "column",
-            alignItems: "center",
-            justifyContent: "center",
-            padding: "60px 20px",
-            color: C.text2
-         }}
+         style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "60px 20px", color: C.text2 }}
       >
-         <motion.div
-            animate={{
-               scale: [1, 1.1, 1],
-               rotate: [0, 5, -5, 0]
-            }}
-            transition={{ duration: 2, repeat: Infinity }}
-         >
+         <motion.div animate={{ scale: [1, 1.1, 1], rotate: [0, 5, -5, 0] }} transition={{ duration: 2, repeat: Infinity }}>
             <FiInbox size={48} color={C.text3} />
          </motion.div>
          <h3 style={{ color: C.text1, marginTop: 20, marginBottom: 8 }}>No se encontraron resultados</h3>
@@ -1842,7 +1900,6 @@ enableGroupSelection= false,
                   boxShadow: C.shadowMd
                }}
             >
-               {/* Opciones para exportar todos los datos */}
                <div style={{ fontSize: 10, fontWeight: 700, color: C.text3, textTransform: "uppercase", letterSpacing: "0.07em", padding: "4px 12px" }}>
                   Todos los datos
                </div>
@@ -1878,7 +1935,6 @@ enableGroupSelection= false,
                   </button>
                ))}
 
-               {/* Opciones para exportar solo seleccionados (si hay filas seleccionadas y la selección está habilitada) */}
                {enableRowSelection && selectedData.length > 0 && (
                   <>
                      <div style={{ height: 1, background: C.border, margin: "6px 0" }} />
@@ -2084,10 +2140,7 @@ enableGroupSelection= false,
             >
                <div style={{ padding: "12px 20px", background: C.pageBg, display: "flex", gap: 12, flexWrap: "wrap" }}>
                   {normalColumns
-                     .filter((col) => {
-                        const stats = getColumnStats(col);
-                        return stats !== null;
-                     })
+                     .filter((col) => getColumnStats(col) !== null)
                      .map((col) => {
                         const stats = getColumnStats(col);
                         if (!stats) return null;
@@ -2178,7 +2231,6 @@ enableGroupSelection= false,
 
             {/* TOOLBAR */}
             <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
-               {/* SEARCH */}
                <div
                   style={{
                      display: "flex",
@@ -2221,9 +2273,7 @@ enableGroupSelection= false,
                   </AnimatePresence>
                </div>
 
-               {/* PREMIUM CONTROLS */}
                <div style={{ display: "flex", gap: 4, marginLeft: "auto", flexWrap: "wrap", justifyContent: "flex-end" }}>
-                  {/* DENSIDAD */}
                   {enableDensityControl && (
                      <div style={{ display: "flex", background: C.surface, border: `1px solid ${C.border}`, borderRadius: C.r6, padding: 3, gap: 2 }}>
                         {(["compact", "comfortable", "spacious"] as DensityMode[]).map((d) => (
@@ -2251,19 +2301,16 @@ enableGroupSelection= false,
                      </div>
                   )}
 
-                  {/* ESTADÍSTICAS */}
                   <IconBtn onClick={() => setShowStats((s) => !s)} title="Estadísticas numéricas" active={showStats} C={C}>
                      <FiBarChart2 size={14} />
                   </IconBtn>
 
-                  {/* PANEL DE AGRUPACIÓN */}
                   {enableGroupBy && (
                      <IconBtn onClick={() => setShowGroupPanel((p) => !p)} title="Agrupar filas" active={!!groupBy} C={C}>
                         <FiLayout size={14} />
                      </IconBtn>
                   )}
 
-                  {/* FILTROS GUARDADOS */}
                   {enableSavedFilters && (
                      <IconBtn
                         onClick={() => {
@@ -2279,7 +2326,6 @@ enableGroupSelection= false,
                      </IconBtn>
                   )}
 
-                  {/* VISIBILIDAD DE COLUMNAS */}
                   {enableColumnVisibility && (
                      <IconBtn
                         onClick={() => {
@@ -2295,7 +2341,6 @@ enableGroupSelection= false,
                      </IconBtn>
                   )}
 
-                  {/* TEMA */}
                   {enableThemeToggle && (
                      <IconBtn
                         onClick={() => setTheme((t) => (t === "light" ? "dark" : "light"))}
@@ -2306,14 +2351,12 @@ enableGroupSelection= false,
                      </IconBtn>
                   )}
 
-                  {/* PANTALLA COMPLETA */}
                   {enableFullscreen && (
                      <IconBtn onClick={() => setIsFullscreen((f) => !f)} title="Pantalla completa (⌘F)" C={C}>
                         {isFullscreen ? <FiMinimize2 size={14} /> : <FiMaximize2 size={14} />}
                      </IconBtn>
                   )}
 
-                  {/* EXPORTAR */}
                   {enableExportOptions && (
                      <motion.button
                         whileHover={{ scale: 1.02 }}
@@ -2393,10 +2436,7 @@ enableGroupSelection= false,
                   >
                      <FiCheck size={10} /> {totalSelected} seleccionados
                      <button
-                        onClick={() => {
-                           setSelectedRows(new Set());
-                           setSelectAll(false);
-                        }}
+                        onClick={() => resetSelection()}
                         style={{ background: "none", border: "none", cursor: "pointer", padding: 0, color: C.ruby, display: "flex", marginLeft: 2 }}
                      >
                         <FiX size={10} />
@@ -2432,7 +2472,7 @@ enableGroupSelection= false,
 
                {sortConfig.field && (
                   <span style={{ fontSize: 11, color: C.text3, display: "flex", alignItems: "center", gap: 4 }}>
-                     Orden: <strong style={{ color: C.text2 }}>{columns.find((c) => c.field === sortConfig.field)?.headerName}</strong> (
+                     Orden: <strong style={{ color: C.text2 }}>{columns.find((c) => c.field === sortConfig.field)?.headerName}</strong>(
                      {sortConfig.direction === "asc" ? "A→Z" : "Z→A"})
                   </span>
                )}
@@ -2462,7 +2502,6 @@ enableGroupSelection= false,
                )}
             </div>
 
-            {/* DROPDOWNS */}
             {renderColumnManager()}
             {renderExportMenu()}
             {renderFilterLibrary()}
@@ -2510,10 +2549,9 @@ enableGroupSelection= false,
             )}
          </AnimatePresence>
 
-         {/* PANEL DE ESTADÍSTICAS */}
          {renderStats()}
 
-         {/* CUERPO PRINCIPAL */}
+         {/* CUERPO */}
          <div style={{ overflowY: "auto", flex: 1, background: viewMode === "cards" ? C.pageBg : C.white }}>
             {loading
                ? renderLoading()
@@ -2610,6 +2648,12 @@ enableGroupSelection= false,
    );
 };
 
+// ==================== forwardRef wrapper con genérico ====================
+// Necesario porque forwardRef no soporta genéricos directamente en TSX
+const CustomTable = forwardRef(CustomTableInner) as <T extends object>(props: PropsTable<T> & { ref?: React.Ref<CustomTableHandle<T>> }) => React.ReactElement;
+
+export default CustomTable;
+
 // ========== COMPONENTES AUXILIARES ==========
 interface IconBtnProps {
    children: React.ReactNode;
@@ -2667,7 +2711,7 @@ const PgBtn = ({ children, onClick, disabled = false, active = false, C }: PgBtn
          fontWeight: active ? 700 : 500,
          color: active ? "#fff" : C.text2,
          opacity: disabled ? 0.4 : 1,
-         boxShadow: active ? `0 2px 8px ${C.rubyGlow}` : "none",
+         boxShadow: active ? `0 2px 8px rgba(155,34,66,0.15)` : "none",
          transition: "all 0.15s",
          fontFamily: "inherit"
       }}
@@ -2675,5 +2719,3 @@ const PgBtn = ({ children, onClick, disabled = false, active = false, C }: PgBtn
       {children}
    </motion.button>
 );
-
-export default CustomTable;

@@ -9,7 +9,7 @@ import { PermissionRoute } from "../../../../App";
 import { AiOutlinePlusSquare, AiOutlineWarning } from "react-icons/ai";
 import { IoReload } from "react-icons/io5";
 import { VscDiffAdded } from "react-icons/vsc";
-import CustomTable from "../../../components/table/customtable";
+import CustomTable, { Column, CustomTableHandle } from "../../../components/table/customtable";
 import { HiX } from "react-icons/hi";
 import { DateFormat, formatDatetime } from "../../../../utils/formats";
 import { Dispatch, RefObject, SetStateAction, useState } from "react";
@@ -20,36 +20,66 @@ type TablePageProceudreProps = {
    procedureData: GenericDataReturn<Procedure>;
    setEditableRows: Dispatch<SetStateAction<Procedure[]>>;
    editableRows: Procedure[];
-   tableRef: RefObject<FormTableHandle>;
+   tableRef: RefObject<CustomTableHandle<Procedure>>;
 };
 
-const TablePageProceudre = ({ procedureData, setEditableRows, editableRows,tableRef }: TablePageProceudreProps) => {
-   const [openCheckbox,setOpenCheckbox]= useState<boolean>()
+const TablePageProceudre = ({ procedureData, setEditableRows, editableRows, tableRef }: TablePageProceudreProps) => {
+   const [openCheckbox, setOpenCheckbox] = useState<boolean>();
    const selectedItems = (newRows: Procedure[]) => {
       setEditableRows((prev) => {
          const prevRows = Array.isArray(prev) ? prev : [];
+         const prevMap = new Map(prevRows.map((row) => [row.id, row]));
+         const newMap = new Map(newRows.map((row) => [row.id, row]));
 
-         // Crear un mapa con todos los elementos (previos y nuevos)
-         const map = new Map<number, Procedure>();
+         // Combinar: los que están en newMap reemplazan, los que no están se eliminan
+         const result = Array.from(newMap.values());
 
-         // Primero agregar los previos
-         prevRows.forEach((row) => map.set(row.id, row));
-         // Luego los nuevos (sobrescriben si hay mismo ID)
-         newRows.forEach((row) => map.set(row.id, row));
+         // Si quieres mantener algunos previos que no están en newRows,
+         // tendrías que definir una lógica diferente
 
-         // Retornar SOLO los valores del mapa (sin duplicados)
-         return Array.from(map.values());
+         return result;
       });
    };
    const handleEdit = () => {
       procedureData.setOpen();
    };
+   const columns: Column<Procedure>[] = [
+      { field: "boxes", headerName: "Cajas" },
+      { field: "fileNumber", headerName: "Expediente" },
+      { field: "archiveCode", headerName: "Código de archivo", groupable: true },
+      { field: "process_id", headerName: "Proceso" },
+
+      { field: "digital", headerName: "Digital", visibility: "expanded" },
+      { field: "electronic", headerName: "Electrónico", visibility: "expanded" },
+      { field: "level", headerName: "Nivel", visibility: "expanded" },
+      { field: "batery", headerName: "Batería", visibility: "expanded" },
+      { field: "shelf", headerName: "Anaquel", visibility: "expanded" },
+
+      {
+         filterType: "date",
+         field: "startDate",
+         headerName: "Fecha inicio",
+         renderField: (v) => <>{formatDatetime(` ${v}`, true, DateFormat.DDDD_DD_DE_MMMM_DE_YYYY)}</>,
+         getFilterValue: (v) => formatDatetime(` ${v}`, true, DateFormat.DDDD_DD_DE_MMMM_DE_YYYY)
+      },
+      {
+         filterType: "date",
+         field: "endDate",
+         headerName: "Fecha fin",
+         renderField: (v) => <>{formatDatetime(` ${v}`, true, DateFormat.DDDD_DD_DE_MMMM_DE_YYYY)}</>,
+         getFilterValue: (v) => formatDatetime(` ${v}`, true, DateFormat.DDDD_DD_DE_MMMM_DE_YYYY)
+      },
+      { field: "totalPages", headerName: "Fojas" },
+      { field: "description", headerName: "Descripción" },
+      { field: "observation", headerName: "Observación", visibility: "expanded" }
+   ];
    const handleErrors = () => {};
    return (
       <CustomTable
+         ref={tableRef}
          headerActions={() => (
             <>
-               {Array.isArray(editableRows) && editableRows.length == 0 && (
+               {!openCheckbox && (
                   <PermissionRoute requiredPermission={"tramite_crear"}>
                      <Tooltip content="Agregar Tramite">
                         <CustomButton
@@ -90,6 +120,10 @@ const TablePageProceudre = ({ procedureData, setEditableRows, editableRows,table
                         color="cyan"
                         variant="solid"
                         onClick={() => {
+                           if (openCheckbox) {
+                                    tableRef.current?.clearSelection(); 
+
+                           }
                            setOpenCheckbox(!openCheckbox);
                         }}
                      >
@@ -97,7 +131,7 @@ const TablePageProceudre = ({ procedureData, setEditableRows, editableRows,table
                      </CustomButton>
                   </Tooltip>
                </PermissionRoute>
-               {Array.isArray(editableRows) && editableRows.length == 0 && (
+               {!openCheckbox && (
                   <PermissionRoute requiredPermission={"tramite_ver"}>
                      <Tooltip content="Recargar">
                         <CustomButton
@@ -114,24 +148,26 @@ const TablePageProceudre = ({ procedureData, setEditableRows, editableRows,table
                      </Tooltip>
                   </PermissionRoute>
                )}
-               {Array.isArray(editableRows) && editableRows.length > 0 && (
-                  <>
-                     <PermissionRoute requiredPermission={"tramite_actualizar"}>
-                        <Tooltip content="Actualizar">
-                           <CustomButton size="lg" color="yellow" variant="solid" onClick={handleEdit}>
-                              <FaEdit />
-                           </CustomButton>
-                        </Tooltip>
-                     </PermissionRoute>
-                     <PermissionRoute requiredPermission={"tramite_eliminar"}>
-                        <Tooltip content="Generar errores">
-                           <CustomButton size="lg" color="pink" variant="solid" onClick={() => {}}>
-                              <AiOutlineWarning />
-                           </CustomButton>
-                        </Tooltip>
-                     </PermissionRoute>
-                  </>
-               )}
+               {
+                  openCheckbox &&(
+                     <>
+                        <PermissionRoute requiredPermission={"tramite_actualizar"}>
+                           <Tooltip content="Actualizar">
+                              <CustomButton size="lg" color="yellow" variant="solid" onClick={handleEdit}>
+                                 <FaEdit />
+                              </CustomButton>
+                           </Tooltip>
+                        </PermissionRoute>
+                        <PermissionRoute requiredPermission={"tramite_eliminar"}>
+                           <Tooltip content="Generar errores">
+                              <CustomButton size="lg" color="pink" variant="solid" onClick={() => {}}>
+                                 <AiOutlineWarning />
+                              </CustomButton>
+                           </Tooltip>
+                        </PermissionRoute>
+                     </>
+                  )
+               }
             </>
          )}
          loading={procedureData.loading}

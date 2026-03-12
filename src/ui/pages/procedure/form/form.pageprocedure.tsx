@@ -4,14 +4,17 @@ import useProccessData from "../../../hooks/useProccessData";
 import FormTable, { ColumnDef, FormTableHandle } from "../../../formik/FormikInputs/formiktable";
 import { GenericDataReturn } from "../../../../hooks/usegenericdata";
 import { Procedure } from "../../../../domain/models/procedure/procedure";
+import { CustomTableHandle } from "../../../components/table/customtable";
+import { Departament } from "../../../../domain/models/departament/departament";
 type TablePageProceudreProps = {
    procedureData: GenericDataReturn<Procedure>;
+   departamentsData: GenericDataReturn<Departament>;
+
    editableRows: Procedure[];
    setEditableRows: Dispatch<SetStateAction<Procedure[]>>;
-      tableRef: RefObject<FormTableHandle>;
-   
+   tableRef: RefObject<CustomTableHandle<Procedure>>;
 };
-const FormPageProcedure = ({ procedureData, editableRows, setEditableRows,tableRef }: TablePageProceudreProps) => {
+const FormPageProcedure = ({ procedureData, editableRows, setEditableRows, tableRef,departamentsData }: TablePageProceudreProps) => {
    const { items, request } = useProccessData();
 
    useEffect(() => {
@@ -22,11 +25,6 @@ const FormPageProcedure = ({ procedureData, editableRows, setEditableRows,tableR
       () => [
          // { field: "id", headerName: "Nº Consecutivo", width: 140, },
          { field: "boxes", headerName: "Cajas", width: 90 },
-         { field: "fileNumber", headerName: "Expediente", width: 130 },
-         { field: "archiveCode", headerName: "Cód. Archivística", width: 160, uppercase: true },
-         { field: "startDate", headerName: "Fecha inicio", width: 140, type: "date" },
-         { field: "endDate", headerName: "Fecha final", width: 140, type: "date" },
-         { field: "description", headerName: "Descripción", width: 200 },
          {
             field: "process_id",
             headerName: "Título expediente",
@@ -36,6 +34,17 @@ const FormPageProcedure = ({ procedureData, editableRows, setEditableRows,tableR
             idKey: "id",
             labelKey: "name"
          },
+         { field: "fileNumber", headerName: "Expediente", width: 130 },
+         {
+            field: "archiveCode",
+            headerName: "Cód. Archivística",
+            width: 160,
+            uppercase: true,
+           
+         },
+         { field: "startDate", headerName: "Fecha inicio", width: 140, type: "date" },
+         { field: "endDate", headerName: "Fecha final", width: 140, type: "date" },
+         { field: "description", headerName: "Descripción", width: 200 },
          { field: "totalPages", headerName: "Total fojas", width: 110, type: "number", min: 0 },
 
          {
@@ -69,7 +78,7 @@ const FormPageProcedure = ({ procedureData, editableRows, setEditableRows,tableR
    const handleSubmit = (rows: Record<string, any>[]) => {
       // Filtrar filas que tengan folio y expediente (ejemplo)
       setEditableRows((prev) => []);
-      tableRef?.current?.resetAllCheckboxes()
+      tableRef.current?.clearSelection();
       procedureData.postItem(rows as Procedure[]);
       // Aquí llamas a tu API
    };
