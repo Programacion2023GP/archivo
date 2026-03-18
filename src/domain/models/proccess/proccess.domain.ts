@@ -4,7 +4,7 @@ export interface Proccess {
    name: string;
    description: string;
    departament_id: number;
-   process_id?: number;
+   proccess_id?: number;
 
    at: number;
    ac: number;

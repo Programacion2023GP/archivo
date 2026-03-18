@@ -7,11 +7,9 @@ const useProcedureData = () => {
    const initialState = useMemo<Procedure>(
       () => ({
          id: 0,
-         archiveCode: "",
          boxes: 0,
          description: "",
          endDate: "",
-         fileNumber: "",
          observation: "",
          startDate: "",
          totalPages: 0,
@@ -20,9 +18,14 @@ const useProcedureData = () => {
          departament_id: 0,
          process_id: 0,
          user_id: 0,
-         batery: false,
-         level: false,
-         shelf: false
+         year:0,
+         ac:0,
+         at:0,
+         name:"",
+         accounting_fiscal_value:false,
+errorDescriptionField:"",
+errorFieldsKey:"",
+
       }),
       []
    );

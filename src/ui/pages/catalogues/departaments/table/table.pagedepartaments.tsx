@@ -191,15 +191,7 @@ const TablePageDepartaments = ({ departaments,setOpen }: TablePageUsersProps) =>
                   <Tooltip content={`Editar a ${row.name}`}>
                      <CustomButton onClick={() => {
                           departaments.setOpen();
-                          departaments.handleChangeItem({
-                             classification_code: "",
-                             departament_id: row.id,
-                             id: 0,
-                             active: true,
-                             children_recursive: [],
-                             name: "",
-                             abbreviation: ""
-                          });
+                          departaments.handleChangeItem(row);
                      }} color={"yellow"} variant="solid" icon={<CiEdit />} />
                   </Tooltip>
                </PermissionRoute>

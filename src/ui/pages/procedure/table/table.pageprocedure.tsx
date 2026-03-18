@@ -21,9 +21,10 @@ type TablePageProceudreProps = {
    setEditableRows: Dispatch<SetStateAction<Procedure[]>>;
    editableRows: Procedure[];
    tableRef: RefObject<CustomTableHandle<Procedure>>;
+   setModeTable: Dispatch<SetStateAction<"create" | "edit" | "view" | "delete"|"editdelete">>;
 };
 
-const TablePageProceudre = ({ procedureData, setEditableRows, editableRows, tableRef }: TablePageProceudreProps) => {
+const TablePageProceudre = ({ procedureData, setEditableRows, editableRows, tableRef, setModeTable }: TablePageProceudreProps) => {
    const [openCheckbox, setOpenCheckbox] = useState<boolean>();
    const selectedItems = (newRows: Procedure[]) => {
       setEditableRows((prev) => {
@@ -40,40 +41,27 @@ const TablePageProceudre = ({ procedureData, setEditableRows, editableRows, tabl
          return result;
       });
    };
+   const handleError = () => {
+      if (editableRows.length === 0) {
+         showToast("Selecciona almenos 1 registro para continuar", "info");
+         return true; // hay error
+      }
+      return false; // todo bien
+   };
    const handleEdit = () => {
+      if (handleError()) return;
+
+      setModeTable("edit");
       procedureData.setOpen();
    };
-   const columns: Column<Procedure>[] = [
-      { field: "boxes", headerName: "Cajas" },
-      { field: "fileNumber", headerName: "Expediente" },
-      { field: "archiveCode", headerName: "Código de archivo", groupable: true },
-      { field: "process_id", headerName: "Proceso" },
 
-      { field: "digital", headerName: "Digital", visibility: "expanded" },
-      { field: "electronic", headerName: "Electrónico", visibility: "expanded" },
-      { field: "level", headerName: "Nivel", visibility: "expanded" },
-      { field: "batery", headerName: "Batería", visibility: "expanded" },
-      { field: "shelf", headerName: "Anaquel", visibility: "expanded" },
+   const handleDelete = () => {
+      if (handleError()) return;
 
-      {
-         filterType: "date",
-         field: "startDate",
-         headerName: "Fecha inicio",
-         renderField: (v) => <>{formatDatetime(` ${v}`, true, DateFormat.DDDD_DD_DE_MMMM_DE_YYYY)}</>,
-         getFilterValue: (v) => formatDatetime(` ${v}`, true, DateFormat.DDDD_DD_DE_MMMM_DE_YYYY)
-      },
-      {
-         filterType: "date",
-         field: "endDate",
-         headerName: "Fecha fin",
-         renderField: (v) => <>{formatDatetime(` ${v}`, true, DateFormat.DDDD_DD_DE_MMMM_DE_YYYY)}</>,
-         getFilterValue: (v) => formatDatetime(` ${v}`, true, DateFormat.DDDD_DD_DE_MMMM_DE_YYYY)
-      },
-      { field: "totalPages", headerName: "Fojas" },
-      { field: "description", headerName: "Descripción" },
-      { field: "observation", headerName: "Observación", visibility: "expanded" }
-   ];
-   const handleErrors = () => {};
+      setModeTable("delete");
+      procedureData.setOpen();
+   };
+ 
    return (
       <CustomTable
          ref={tableRef}
@@ -86,25 +74,26 @@ const TablePageProceudre = ({ procedureData, setEditableRows, editableRows, tabl
                            size="lg"
                            variant="solid"
                            onClick={() => {
+                                 setEditableRows([]); // ← limpiar filas al crear nuevo
+                                 setModeTable("create");
                               procedureData.setOpen();
                               procedureData.handleChangeItem({
                                  id: 0,
                                  boxes: 0,
-                                 fileNumber: "",
-                                 archiveCode: "",
-                                 process_id: 0,
-                                 departament_id: 0,
-                                 user_id: 0,
                                  description: "",
-                                 digital: false,
-                                 electronic: false,
-                                 level: false,
-                                 batery: false,
-                                 shelf: false,
-                                 startDate: "",
                                  endDate: "",
+                                 observation: "",
+                                 startDate: "",
                                  totalPages: 0,
-                                 observation: ""
+                                 fisic: false,
+                                 electronic: false,
+                                 departament_id: 0,
+                                 process_id: 0,
+                                 user_id: 0,
+                                 ac: 0,
+                                 at: 0,
+                                 name: "",
+                                 accounting_fiscal_value: false
                               });
                            }}
                         >
@@ -121,8 +110,7 @@ const TablePageProceudre = ({ procedureData, setEditableRows, editableRows, tabl
                         variant="solid"
                         onClick={() => {
                            if (openCheckbox) {
-                                    tableRef.current?.clearSelection(); 
-
+                              tableRef.current?.clearSelection();
                            }
                            setOpenCheckbox(!openCheckbox);
                         }}
@@ -148,26 +136,24 @@ const TablePageProceudre = ({ procedureData, setEditableRows, editableRows, tabl
                      </Tooltip>
                   </PermissionRoute>
                )}
-               {
-                  openCheckbox &&(
-                     <>
-                        <PermissionRoute requiredPermission={"tramite_actualizar"}>
-                           <Tooltip content="Actualizar">
-                              <CustomButton size="lg" color="yellow" variant="solid" onClick={handleEdit}>
-                                 <FaEdit />
-                              </CustomButton>
-                           </Tooltip>
-                        </PermissionRoute>
-                        <PermissionRoute requiredPermission={"tramite_eliminar"}>
-                           <Tooltip content="Generar errores">
-                              <CustomButton size="lg" color="pink" variant="solid" onClick={() => {}}>
-                                 <AiOutlineWarning />
-                              </CustomButton>
-                           </Tooltip>
-                        </PermissionRoute>
-                     </>
-                  )
-               }
+               {openCheckbox && (
+                  <>
+                     <PermissionRoute requiredPermission={"tramite_actualizar"}>
+                        <Tooltip content="Editar">
+                           <CustomButton size="lg" color="yellow" variant="solid" onClick={handleEdit}>
+                              <FaEdit />
+                           </CustomButton>
+                        </Tooltip>
+                     </PermissionRoute>
+                     <PermissionRoute requiredPermission={"tramite_eliminar"}>
+                        <Tooltip content="Generar errores">
+                           <CustomButton size="lg" color="pink" variant="solid" onClick={handleDelete}>
+                              <AiOutlineWarning />
+                           </CustomButton>
+                        </Tooltip>
+                     </PermissionRoute>
+                  </>
+               )}
             </>
          )}
          loading={procedureData.loading}
@@ -178,17 +164,14 @@ const TablePageProceudre = ({ procedureData, setEditableRows, editableRows, tabl
          storageKey="procedure_table"
          columns={[
             { field: "boxes", headerName: "Cajas" },
-            { field: "fileNumber", headerName: "Expediente" },
-            { field: "archiveCode", headerName: "Código de archivo", groupable: true },
+           
             { field: "process_id", headerName: "Proceso" },
             // { field: "departament_id", headerName: "Departamento" },
             // { field: "user_id", headerName: "Usuario" },
 
-            { field: "digital", headerName: "Digital", visibility: "expanded" },
+            { field: "fisic", headerName: "Fisico", visibility: "expanded" },
             { field: "electronic", headerName: "Electrónico", visibility: "expanded" },
-            { field: "level", headerName: "Nivel", visibility: "expanded" },
-            { field: "batery", headerName: "Batería", visibility: "expanded" },
-            { field: "shelf", headerName: "Anaquel", visibility: "expanded" },
+        
 
             {
                filterType: "date",

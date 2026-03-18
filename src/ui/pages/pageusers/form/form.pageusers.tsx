@@ -56,9 +56,9 @@ const FormPageUsers = ({ usersData,permissionsData,validationSchema,getEmployed,
                      idKey="id"
                      labelKey="name"
                   />
-                  <FormikInput name="firstName" label="Nombre" disabled responsive={RESPONSIVE} />
-                  <FormikInput name="paternalSurname" label="Apellido Paterno" disabled responsive={RESPONSIVE} />
-                  <FormikInput name="maternalSurname" label="Apellido Materno" disabled responsive={RESPONSIVE} />
+                  <FormikInput name="firstName" label="Nombre"  responsive={RESPONSIVE} />
+                  <FormikInput name="paternalSurname" label="Apellido Paterno"  responsive={RESPONSIVE} />
+                  <FormikInput name="maternalSurname" label="Apellido Materno"  responsive={RESPONSIVE} />
                   <FTransferList name="permissions" label="Asignar Permissos" departamentos={permissionsData.items} idKey="id" labelKey="name" />
                </>
             )}

@@ -1,3 +1,4 @@
+
 import CompositePage from "../../components/compositecustoms/compositePage";
 
 import { useValidators } from "../../validations/validators";
@@ -17,7 +18,7 @@ import { CustomTableHandle } from "../../components/table/customtable";
 const PageProcedure = () => {
    const procedure = useProcedureData();
    const departaments = useDepartamentsData();
-
+   const [modeTable, setModeTable] = useState<"create" | "edit" | "view" | "delete">("create");
    const [editableRows, setEditableRows] = useState<Procedure[]>([]);
    const tableRef = useRef<CustomTableHandle<Procedure>>(null);
 
@@ -27,9 +28,11 @@ const PageProcedure = () => {
             formDirection="modal"
             onClose={procedure.setOpen}
             isOpen={procedure.open}
-            modalTitle="Tramites"
+            // modalTitle="Tramites"
             form={() => (
                <FormPageProcedure
+                  setModeTable={setModeTable}
+                  modeTable={modeTable}
                   tableRef={tableRef}
                   departamentsData={departaments}
                   setEditableRows={setEditableRows}
@@ -37,7 +40,15 @@ const PageProcedure = () => {
                   editableRows={editableRows}
                />
             )}
-            table={() => <TablePageProceudre tableRef={tableRef} procedureData={procedure} setEditableRows={setEditableRows} editableRows={editableRows} />}
+            table={() => (
+               <TablePageProceudre
+                  setModeTable={setModeTable}
+                  tableRef={tableRef}
+                  procedureData={procedure}
+                  setEditableRows={setEditableRows}
+                  editableRows={editableRows}
+               />
+            )}
          />
       </>
    );

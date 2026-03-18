@@ -14,11 +14,11 @@ import { PermissionRoute } from "../../../../../App";
 import { IoIosDocument } from "react-icons/io";
 import { Proccess } from "../../../../../domain/models/proccess/proccess.domain";
 
-type TablePageUsersProps = {
+type TablePageProccessProps = {
    proccess: GenericDataReturn<Proccess>;
    id: Departament["classification_code"];
 };
-const TablePageProccess = ({ proccess, id }: TablePageUsersProps) => {
+const TablePageProccess = ({ proccess, id }: TablePageProccessProps) => {
    function getNextTreeCode(parentNode?: Proccess | null) {
       // Si no hay padre (nodo raíz)
 if (!parentNode) {

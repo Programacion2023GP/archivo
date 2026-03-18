@@ -6,15 +6,26 @@ import { GenericDataReturn } from "../../../../hooks/usegenericdata";
 import { Procedure } from "../../../../domain/models/procedure/procedure";
 import { CustomTableHandle } from "../../../components/table/customtable";
 import { Departament } from "../../../../domain/models/departament/departament";
+
 type TablePageProceudreProps = {
    procedureData: GenericDataReturn<Procedure>;
    departamentsData: GenericDataReturn<Departament>;
-
    editableRows: Procedure[];
    setEditableRows: Dispatch<SetStateAction<Procedure[]>>;
    tableRef: RefObject<CustomTableHandle<Procedure>>;
+   modeTable: "create" | "edit" | "view" | "delete" | "editdelete";
+   setModeTable: Dispatch<SetStateAction<"create" | "edit" | "view" | "delete" | "editdelete">>;
 };
-const FormPageProcedure = ({ procedureData, editableRows, setEditableRows, tableRef,departamentsData }: TablePageProceudreProps) => {
+
+const FormPageProcedure = ({ 
+   procedureData, 
+   editableRows, 
+   setEditableRows, 
+   tableRef, 
+   departamentsData, 
+   modeTable,
+   setModeTable
+}: TablePageProceudreProps) => {
    const { items, request } = useProccessData();
 
    useEffect(() => {
@@ -23,7 +34,6 @@ const FormPageProcedure = ({ procedureData, editableRows, setEditableRows, table
 
    const COLS = useMemo<ColumnDef[]>(
       () => [
-         // { field: "id", headerName: "Nº Consecutivo", width: 140, },
          { field: "boxes", headerName: "Cajas", width: 90 },
          {
             field: "process_id",
@@ -32,73 +42,118 @@ const FormPageProcedure = ({ procedureData, editableRows, setEditableRows, table
             type: "autocomplete",
             options: items,
             idKey: "id",
-            labelKey: "name"
+            labelKey: "name",
+            selectableKey: "selectable"
          },
-         { field: "fileNumber", headerName: "Expediente", width: 130 },
-         {
-            field: "archiveCode",
-            headerName: "Cód. Archivística",
-            width: 160,
-            uppercase: true,
-           
-         },
+         { field: "year", headerName: "Año", type: "number", width: 100, min: 1900, max: 2100, step: 1 },
          { field: "startDate", headerName: "Fecha inicio", width: 140, type: "date" },
          { field: "endDate", headerName: "Fecha final", width: 140, type: "date" },
          { field: "description", headerName: "Descripción", width: 200 },
          { field: "totalPages", headerName: "Total fojas", width: 110, type: "number", min: 0 },
-
          {
-            field: "support", // campo base (no se usa directamente)
+            field: "support",
             headerName: "Soporte documental",
             width: 260,
             type: "checkboxgroup",
             items: [
                { value: true, label: "Electronico", field: "electronic" },
-               { value: true, label: "Digital", field: "digital" }
+               { value: true, label: "Físico", field: "fisic" }
             ]
          },
+
          {
-            field: "location", // campo base (no se usa directamente)
-            headerName: "Ubicación en archivo de concentración",
+            field: "vadoc",
+            headerName: "Valores Documentales",
             width: 260,
             type: "checkboxgroup",
             items: [
-               { value: true, label: "Bateria", field: "batery" },
-               { value: true, label: "Anaquel", field: "shelf" },
-               { value: true, label: "Nivel", field: "level" }
+               { value: true, label: "Administrativo", field: "administrative_value" },
+               { value: true, label: "Contable Fiscal", field: "accounting_fiscal_value" },
+               { value: true, label: "Juridico", field: "legal_value" }
             ]
          },
-         { field: "stock", headerName: "Caja", width: 130 },
+         { field: "retention_period_current", headerName: "at", type: "number", width: 100, min: 0,  step: 1 },
+         { field: "retention_period_archive", headerName: "ac", type: "number", width: 100, min: 0, step: 1 },
 
+        
+         {
+            field: "ubicat",
+            headerName: "Ubicación en archivo de tramite",
+            width: 260,
+            type: "checkboxgroup",
+            
+            items: [
+               { value: true, label: "Inmueble", field: "location_building" },
+               { value: true, label: "Mueble", field: "location_furniture" },
+               { value: true, label: "Posición", field: "location_position" }
+            ]
+         },
          { field: "observation", headerName: "Observaciones", type: "text", width: 200 }
       ],
       [items]
-   ); // Solo depende de items (si cambia, se actualiza)
+   );
 
    const handleSubmit = (rows: Record<string, any>[]) => {
-      // Filtrar filas que tengan folio y expediente (ejemplo)
-      setEditableRows((prev) => []);
+      console.log("Rows to save:", rows);
+
+      if (modeTable === "delete") {
+         // En modo delete, enviar solo las filas con errores
+
+         procedureData.postItem(rows as Procedure[]);
+      } else {
+         procedureData.postItem(rows as Procedure[]);
+      }
+
+      setEditableRows([]);
+      setModeTable("create"); // ← resetear modo al cerrar
+
       tableRef.current?.clearSelection();
-      procedureData.postItem(rows as Procedure[]);
-      // Aquí llamas a tu API
    };
 
+   const handleErrorChange = (errors: { rowIndex: number; fields: string[]; description?: string }[]) => {
+      
+      // Aquí puedes actualizar algún estado si necesitas
+      // Por ejemplo, para mostrar un contador de errores
+   };
+
+   
    return (
       <div style={{ height: "calc(100vh - 80px)" }}>
-         <FormTable columns={COLS} initialRows={editableRows} initialSize={30} chunkSize={2} onSubmit={handleSubmit} />
+         <FormTable
+            columns={COLS}
+            errorFieldsKey="errorFieldsKey" // row.errorFields = "boxes,year"
+            errorDescriptionField="errorDescriptionField" // editable, primera columna
+            errorDescriptionPlaceholder="Motivo del rechazo..."
+            errorDescriptions={{
+               boxes: "Número de cajas incorrecto",
+               year: "Año fuera de rango"
+               // ...
+            }}
+            selectionActions={[
+               {
+                  label: modeTable === "delete" ? "Rechazar selección" : "Guardar selección",
+                  color: modeTable === "delete" ? "#dc2626" : "#4f46e5",
+                  onClick: (indices, rows) => {
+                     // console.log("Filas seleccionadas:", rows);
+                     // if (modeTable === "delete") {
+                     //    // En modo delete, marcar todas las celdas de las filas seleccionadas
+                     //    console.log("Filas a rechazar:", rows);
+                     //    // Aquí podrías enviarlas directamente o mostrar confirmación
+                     // }
+                     // tableRef.current?.clearSelection();
+                  }
+               }
+            ]}
+            mode={modeTable}
+            initialRows={editableRows}
+            initialSize={30}
+            chunkSize={2}
+            onSubmit={handleSubmit}
+            onErrorChange={handleErrorChange}
+            showRowNum={true}
+         />
       </div>
    );
 };
 
 export default FormPageProcedure;
-
-// { field: "totalPages", headerName: "Total fojas", type: "number",
-//   compute: (row) => (row.boxes ?? 0) * (row.pagesPerBox ?? 0)
-// }
-//  onChange: async (val, { setField, row }) => {
-//     if (!val) return;
-//     const data = await fetchProcess(val);          // tu petición HTTP
-//     setField("description", data.title);
-//     setField("totalPages",  data.total_pages);
-//     setField("endDate",     data.end_date);
-//   }
