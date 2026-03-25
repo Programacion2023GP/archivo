@@ -31,7 +31,7 @@ const TablePageUsers = ({ usersData }: TablePageUsersProps) => {
                   </Tooltip>
                </PermissionRoute>
                <PermissionRoute requiredPermission={"usuarios_ver"}>
-                  <Tooltip content="Refrescar la tabla">
+                  <Tooltip content="Refrescar ">
                      <CustomButton
                         color="purple"
                         onClick={() => {

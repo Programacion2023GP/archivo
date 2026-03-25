@@ -1,12 +1,12 @@
 export const MODULE_ORDER = [
-   { permission: "catalogo_departamentos_ver", route: "/#/catalogos/departamentos" },
+   { permission: "tramite_ver", route: "/#/tramite" },
    { permission: "usuarios_ver", route: "/#/usuarios" },
-   { permission: "tramite_ver", route: "/#/tramite" }
+   { permission: "catalogo_departamentos_ver", route: "/#/catalogos/departamentos" },
 ];
 const MODULE_ORDERREDIRECT = [
-   { permission: "catalogo_departamentos_ver", route: "/catalogos/departamentos" },
+   { permission: "tramite_ver", route: "/tramite" },
    { permission: "usuarios_ver", route: "/usuarios" },
-   { permission: "tramite_ver", route: "/tramite" }
+   { permission: "catalogo_departamentos_ver", route: "/catalogos/departamentos" },
 ];
 type RedirectData = {
    permisos: string[];

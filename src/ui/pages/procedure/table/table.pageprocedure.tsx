@@ -3,7 +3,7 @@ import { GenericDataReturn } from "../../../../hooks/usegenericdata";
 import { Procedure } from "../../../../domain/models/procedure/procedure";
 import CustomButton from "../../../components/button/custombuttom";
 import { showConfirmationAlert, showToast } from "../../../../sweetalert/Sweetalert";
-import { FaBug, FaCheck, FaEdit, FaToggleOff, FaToggleOn } from "react-icons/fa";
+import { FaBug, FaCheck, FaEdit, FaEye, FaToggleOff, FaToggleOn } from "react-icons/fa";
 import Tooltip from "../../../components/toltip/Toltip";
 import { PermissionRoute } from "../../../../App";
 import { AiOutlinePlusSquare, AiOutlineWarning } from "react-icons/ai";
@@ -15,16 +15,36 @@ import { DateFormat, formatDatetime } from "../../../../utils/formats";
 import { Dispatch, RefObject, SetStateAction, useState } from "react";
 import { TbSelect } from "react-icons/tb";
 import { FormTableHandle } from "../../../formik/FormikInputs/formiktable";
+import { IoMdCheckmark } from "react-icons/io";
+import { IoMdClose } from "react-icons/io";
+import CustomBadge from "../../../components/badge/custombadge";
+import { AutorizationChain, ProceduresCreatedAt } from "../../../../domain/models/procedurecreatedat/procedure_created_at";
+import CustomModal from "../../../components/modal/modal";
+import { LuRefreshCcw } from "react-icons/lu";
+import { RiFileExcel2Fill } from "react-icons/ri";
+import { accessCreateProcedure } from "../utils/utils.pageprocedure";
+import { MdSend } from "react-icons/md";
+import { BsCheck2Circle } from "react-icons/bs";
+import CustomTreeView from "../../../components/treeview/treeview";
 
 type TablePageProceudreProps = {
    procedureData: GenericDataReturn<Procedure>;
+   procedureCreatedAt: GenericDataReturn<ProceduresCreatedAt>;
    setEditableRows: Dispatch<SetStateAction<Procedure[]>>;
    editableRows: Procedure[];
-   tableRef: RefObject<CustomTableHandle<Procedure>>;
-   setModeTable: Dispatch<SetStateAction<"create" | "edit" | "view" | "delete"|"editdelete">>;
-};
+   setOpenExcel: Dispatch<SetStateAction<boolean>>;
 
-const TablePageProceudre = ({ procedureData, setEditableRows, editableRows, tableRef, setModeTable }: TablePageProceudreProps) => {
+   tableRef: RefObject<CustomTableHandle<Procedure>>;
+   setModeTable: Dispatch<SetStateAction<"create" | "edit" | "view" | "delete" | "editdelete">>;
+};
+const TablePageProcedureDetails = ({
+   editableRows,
+   procedureCreatedAt,
+   procedureData,
+   setEditableRows,
+   setModeTable,
+   tableRef
+}: Omit<TablePageProceudreProps, "setOpenExcel">) => {
    const [openCheckbox, setOpenCheckbox] = useState<boolean>();
    const selectedItems = (newRows: Procedure[]) => {
       setEditableRows((prev) => {
@@ -50,8 +70,11 @@ const TablePageProceudre = ({ procedureData, setEditableRows, editableRows, tabl
    };
    const handleEdit = () => {
       if (handleError()) return;
-
-      setModeTable("edit");
+      if (procedureData.constants.status == "rechazado") {
+         setModeTable("editdelete");
+      } else {
+         setModeTable("edit");
+      }
       procedureData.setOpen();
    };
 
@@ -61,149 +84,417 @@ const TablePageProceudre = ({ procedureData, setEditableRows, editableRows, tabl
       setModeTable("delete");
       procedureData.setOpen();
    };
- 
+   const isAdmin = localStorage.getItem("role")?.toUpperCase() === "ADMINISTRADOR";
+   const currentStatus = procedureData?.items?.[0]?.status?.toString();
+   const isValidStatus = !["enviado", "autorizado", "finalizado"].includes(currentStatus);
+   const showButtons = isAdmin || isValidStatus;
+
    return (
-      <CustomTable
-         ref={tableRef}
-         headerActions={() => (
-            <>
-               {!openCheckbox && (
-                  <PermissionRoute requiredPermission={"tramite_crear"}>
-                     <Tooltip content="Agregar Tramite">
-                        <CustomButton
-                           size="lg"
-                           variant="solid"
-                           onClick={() => {
+      <>
+         <CustomTable
+            ref={tableRef}
+            headerActions={() => (
+               <>
+                  {/* {!openCheckbox && (
+                     <PermissionRoute requiredPermission={"tramite_crear"}>
+                        <Tooltip content="Agregar Tramite">
+                           <CustomButton
+                              size="lg"
+                              variant="solid"
+                              onClick={() => {
                                  setEditableRows([]); // ← limpiar filas al crear nuevo
                                  setModeTable("create");
-                              procedureData.setOpen();
-                              procedureData.handleChangeItem({
-                                 id: 0,
-                                 boxes: 0,
-                                 description: "",
-                                 endDate: "",
-                                 observation: "",
-                                 startDate: "",
-                                 totalPages: 0,
-                                 fisic: false,
-                                 electronic: false,
-                                 departament_id: 0,
-                                 process_id: 0,
-                                 user_id: 0,
-                                 ac: 0,
-                                 at: 0,
-                                 name: "",
-                                 accounting_fiscal_value: false
-                              });
-                           }}
-                        >
-                           <VscDiffAdded />
-                        </CustomButton>
-                     </Tooltip>
+                                 procedureData.setOpen();
+                                 procedureData.handleChangeItem({
+                                    id: 0,
+                                    boxes: 0,
+                                    description: "",
+                                    endDate: "",
+                                    observation: "",
+                                    startDate: "",
+                                    totalPages: 0,
+                                    fisic: false,
+                                    electronic: false,
+                                    departament_id: 0,
+                                    process_id: 0,
+                                    user_id: 0,
+                                    ac: 0,
+                                    at: 0,
+                                    name: "",
+                                    accounting_fiscal_value: false
+                                 });
+                              }}
+                           >
+                              <VscDiffAdded />
+                           </CustomButton>
+                        </Tooltip>
+                     </PermissionRoute>
+                  )} */}
+
+                  <>
+                     {(() => {
+                        return (
+                           showButtons && (
+                              <>
+                                 <PermissionRoute requiredPermission={"tramite_actualizar"}>
+                                    <Tooltip content="Editar">
+                                       <CustomButton
+                                          size="lg"
+                                          color="yellow"
+                                          variant="solid"
+                                          onClick={() => {
+                                             procedureData.setConstant("status", "rechazado");
+
+                                             handleEdit();
+                                          }}
+                                       >
+                                          <FaEdit />
+                                       </CustomButton>
+                                    </Tooltip>
+                                 </PermissionRoute>
+                                 <PermissionRoute requiredPermission={"tramite_actualizar"}>
+                                    {currentStatus == "captura" && (
+                                       <Tooltip content="Enviar Todos">
+                                          <CustomButton
+                                             size="lg"
+                                             color="green"
+                                             variant="solid"
+                                             onClick={() => {
+                                                procedureData
+                                                   .request({
+                                                      method: "POST",
+                                                      url: `procedure/changestatus`,
+                                                      data: {
+                                                         status: 2,
+                                                         startDate: String(procedureData.constants.startDate),
+                                                         departament_id: procedureData.constants.departament_id
+                                                      },
+                                                      getData: false
+                                                   })
+                                                   .finally(() => {
+                                                      const today = new Date().toISOString().split("T")[0];
+                                                      procedureData.request({
+                                                         method: "GET",
+                                                         url: `procedure/detailsprocedure/${procedureData.constants.startDate ?? today}/${procedureData.constants.departament_id}`
+                                                      });
+                                                   });
+                                             }}
+                                          >
+                                             <MdSend />
+                                          </CustomButton>
+                                       </Tooltip>
+                                    )}
+                                 </PermissionRoute>
+                                 <PermissionRoute requiredPermission={"tramite_eliminar"}>
+                                    <Tooltip content="Revision">
+                                       <CustomButton size="lg" color="pink" variant="solid" onClick={handleDelete}>
+                                          <BsCheck2Circle />
+                                       </CustomButton>
+                                    </Tooltip>
+                                 </PermissionRoute>
+                              </>
+                           )
+                        );
+                     })()}
+                  </>
+               </>
+            )}
+            loading={procedureData.loading}
+            data={procedureData.items}
+            onRowSelect={selectedItems}
+            enableSavedFilters
+            enableRowSelection={showButtons}
+            storageKey="procedure_table"
+            columns={[
+               { field: "boxes", headerName: "Cajas" },
+
+               {
+                  field: "status",
+                  headerName: "Status",
+                  renderField: (v) => (
+                     <CustomBadge variant="outline" color="secondary">
+                        {v.toString().toUpperCase()}
+                     </CustomBadge>
+                  )
+               },
+               // { field: "departament_id", headerName: "Departamento" },
+               // { field: "user_id", headerName: "Usuario" },
+               { field: "retention_period_current", headerName: "At" },
+
+               { field: "retention_period_archive", headerName: "Ac" },
+
+               { field: "totalPages", headerName: "Fojas", visibility: "expanded" },
+
+               {
+                  field: "fisic",
+                  headerName: "Fisico",
+                  visibility: "expanded",
+                  renderField: (v) => (
+                     <CustomBadge size="lg" color={v ? "success" : "danger"} variant="subtle">
+                        {v ? <IoMdCheckmark /> : <IoMdClose />}
+                     </CustomBadge>
+                  )
+               },
+               {
+                  field: "electronic",
+                  headerName: "Electrónico",
+                  visibility: "expanded",
+                  renderField: (v) => (
+                     <CustomBadge size="lg" color={v ? "success" : "danger"} variant="subtle">
+                        {v ? <IoMdCheckmark /> : <IoMdClose />}
+                     </CustomBadge>
+                  )
+               },
+               {
+                  field: "administrative_value",
+                  headerName: "Administrativo",
+                  visibility: "expanded",
+                  renderField: (v) => (
+                     <CustomBadge size="lg" color={v ? "success" : "danger"} variant="subtle">
+                        {v ? <IoMdCheckmark /> : <IoMdClose />}
+                     </CustomBadge>
+                  )
+               },
+               {
+                  field: "accounting_fiscal_value",
+                  headerName: "Contable Fiscal",
+                  visibility: "expanded",
+                  renderField: (v) => (
+                     <CustomBadge size="lg" color={v ? "success" : "danger"} variant="subtle">
+                        {v ? <IoMdCheckmark /> : <IoMdClose />}
+                     </CustomBadge>
+                  )
+               },
+               {
+                  field: "legal_value",
+                  headerName: "Juridico",
+                  visibility: "expanded",
+                  renderField: (v) => (
+                     <CustomBadge size="lg" color={v ? "success" : "danger"} variant="subtle">
+                        {v ? <IoMdCheckmark /> : <IoMdClose />}
+                     </CustomBadge>
+                  )
+               },
+
+               {
+                  filterType: "date",
+                  field: "startDate",
+                  headerName: "Fecha inicio",
+
+                  renderField: (v) => <>{formatDatetime(` ${v}`, true, DateFormat.DDDD_DD_DE_MMMM_DE_YYYY)}</>,
+                  getFilterValue: (v) => formatDatetime(` ${v}`, true, DateFormat.DDDD_DD_DE_MMMM_DE_YYYY)
+               },
+               {
+                  filterType: "date",
+
+                  field: "endDate",
+                  headerName: "Fecha fin",
+                  renderField: (v) => <>{formatDatetime(` ${v}`, true, DateFormat.DDDD_DD_DE_MMMM_DE_YYYY)}</>,
+                  getFilterValue: (v) => formatDatetime(` ${v}`, true, DateFormat.DDDD_DD_DE_MMMM_DE_YYYY)
+               },
+
+               { field: "description", headerName: "Descripción" },
+               { field: "observation", headerName: "Observación", visibility: "expanded" }
+            ]}
+            conditionExcel={"tramite_exportar"}
+            paginate={[10, 20, 30]}
+            actions={(row) => <></>}
+         />
+      </>
+   );
+};
+const TablePageProceudre = ({ procedureData, setEditableRows, editableRows, tableRef, setModeTable, procedureCreatedAt, setOpenExcel }: TablePageProceudreProps) => {
+   const [deptoDetails, setDeptoDetails] = useState<{ open: boolean; name: string }>({ name: "", open: false });
+   return (
+      <>
+         <CustomModal
+            isOpen={deptoDetails.open}
+            onClose={() => {
+               setDeptoDetails((p) => ({
+                  ...p,
+                  open: !deptoDetails.open
+               }));
+            }}
+            title={deptoDetails.name}
+         >
+            <TablePageProcedureDetails
+               editableRows={editableRows}
+               procedureCreatedAt={procedureCreatedAt}
+               procedureData={procedureData}
+               setEditableRows={setEditableRows}
+               setModeTable={setModeTable}
+               tableRef={tableRef}
+            />
+         </CustomModal>
+         <CustomTable
+            headerActions={() => (
+               <>
+                  <PermissionRoute requiredPermission={"tramite_crear"}>
+                     {accessCreateProcedure(procedureCreatedAt.items) && (
+                        <Tooltip content="Agregar Tramite">
+                           <CustomButton
+                              size="lg"
+                              variant="solid"
+                              onClick={() => {
+                                 setEditableRows([]); // ← limpiar filas al crear nuevo
+                                 setModeTable("create");
+                                 procedureData.setOpen();
+                                 procedureData.handleChangeItem({
+                                    id: 0,
+                                    boxes: 0,
+                                    description: "",
+                                    endDate: "",
+                                    observation: "",
+                                    startDate: "",
+                                    totalPages: 0,
+                                    fisic: false,
+                                    electronic: false,
+                                    departament_id: 0,
+                                    process_id: 0,
+                                    user_id: 0,
+                                    ac: 0,
+                                    at: 0,
+                                    name: "",
+                                    accounting_fiscal_value: false
+                                 });
+                              }}
+                           >
+                              <VscDiffAdded />
+                           </CustomButton>
+                        </Tooltip>
+                     )}
                   </PermissionRoute>
-               )}
-               <PermissionRoute requiredPermission={"tramite_ver"}>
-                  <Tooltip content="Seleccionar">
-                     <CustomButton
-                        size="lg"
-                        color="cyan"
-                        variant="solid"
-                        onClick={() => {
-                           if (openCheckbox) {
-                              tableRef.current?.clearSelection();
-                           }
-                           setOpenCheckbox(!openCheckbox);
-                        }}
-                     >
-                        <TbSelect />
-                     </CustomButton>
-                  </Tooltip>
-               </PermissionRoute>
-               {!openCheckbox && (
                   <PermissionRoute requiredPermission={"tramite_ver"}>
-                     <Tooltip content="Recargar">
+                     <Tooltip content="Refrescar ">
                         <CustomButton
                            size="lg"
-                           variant="solid"
-                           color="green"
+                           color="purple"
                            onClick={() => {
-                              procedureData.fetchData();
+                              procedureCreatedAt.fetchData();
                            }}
                         >
                            {" "}
-                           <IoReload />
+                           <LuRefreshCcw />
                         </CustomButton>
                      </Tooltip>
                   </PermissionRoute>
-               )}
-               {openCheckbox && (
-                  <>
-                     <PermissionRoute requiredPermission={"tramite_actualizar"}>
-                        <Tooltip content="Editar">
-                           <CustomButton size="lg" color="yellow" variant="solid" onClick={handleEdit}>
-                              <FaEdit />
-                           </CustomButton>
-                        </Tooltip>
-                     </PermissionRoute>
-                     <PermissionRoute requiredPermission={"tramite_eliminar"}>
-                        <Tooltip content="Generar errores">
-                           <CustomButton size="lg" color="pink" variant="solid" onClick={handleDelete}>
-                              <AiOutlineWarning />
-                           </CustomButton>
-                        </Tooltip>
-                     </PermissionRoute>
-                  </>
-               )}
-            </>
-         )}
-         loading={procedureData.loading}
-         data={procedureData.items}
-         onRowSelect={selectedItems}
-         enableSavedFilters
-         enableRowSelection={openCheckbox}
-         storageKey="procedure_table"
-         columns={[
-            { field: "boxes", headerName: "Cajas" },
-           
-            { field: "process_id", headerName: "Proceso" },
-            // { field: "departament_id", headerName: "Departamento" },
-            // { field: "user_id", headerName: "Usuario" },
+               </>
+            )}
+            data={procedureCreatedAt.items}
+            loading={procedureData.loading || procedureCreatedAt.loading}
+            paginate={[10, 25, 50, 100]}
+            columns={[
+               {
+                  field: "full_group",
+                  headerName: "Agrupados por",
+                  renderField: (v: any, row) => {
+                     const date = String(v).split(".");
+                     const groupName = date[0];
+                     const groupDate = date[1];
+                     const count = row.total_procedures || 1; // Asumiendo que la cantidad viene en la tercera posición
 
-            { field: "fisic", headerName: "Fisico", visibility: "expanded" },
-            { field: "electronic", headerName: "Electrónico", visibility: "expanded" },
-        
+                     return (
+                        <>
+                           {groupName} - {formatDatetime(groupDate, true, DateFormat.DDDD_DD_DE_MMMM_DE_YYYY)}
+                           <span style={{ marginLeft: "8px", color: "#666", fontSize: "0.85em" }}>
+                              ({count} {count === 1 ? "trámite" : "trámites"})
+                           </span>
+                        </>
+                     );
+                  },
+                  getFilterValue: (value: any) => {
+                     const date = String(value).split(".");
+                     return `${date[0]} - ${formatDatetime(date[1], true, DateFormat.DDDD_DD_DE_MMMM_DE_YYYY)}`;
+                  }
+               },
+               {
+                  field: "status",
+                  headerName: "Status",
+                  renderField: (v, row) => (
+                     <CustomBadge variant="outline" color={"info"}>
+                        {String(v).toUpperCase()}
+                     </CustomBadge>
+                  )
+               },
+               {
+                  field: "authorization_chain",
+                  headerName: "Progreso",
+                  renderField: (v: any, row) => (
+                     <CustomTreeView
+                        data={v}
+                        nameField="name" // ← aquí pones el campo que quieras: "name", "department_name", etc.
+                        groupField="group"
+                        levelField="level"
+                        directorField="director_name"
+                        showGroup
+                        showLevel
+                        showDirector
+                        
+                        onNodeClick={(node, idx) => console.log(node, idx)}
+                     />
+                  )
+               },
+               { field: "department_name", headerName: "Departamento" },
+               { field: "user_fullname", headerName: "Capturado por" }
+            ]}
+            actions={(row) => (
+               <>
+                  <PermissionRoute requiredPermission={"tramite_ver"}>
+                     <Tooltip content="Ver detalles">
+                        <CustomButton
+                           size="sm"
+                           variant="soft"
+                           color="green"
+                           onClick={() => {
+                              procedureData
+                                 .request({
+                                    method: "GET",
+                                    url: `procedure/detailsprocedure/${row.order_date}/${row.departament_id}`
+                                 })
+                                 .finally(() => {
+                                    procedureData.setConstant("startDate", row.order_date);
+                                    procedureData.setConstant("departament_id", row.departament_id);
+                                    if (row.status == "rechazado") {
+                                       procedureData.setConstant("status", "rechazado");
+                                    }
+                                    const date = String(row.full_group).split(".");
+                                    setDeptoDetails({
+                                       name: `${date[0]} - ${formatDatetime(date[1], true, DateFormat.DDDD_DD_DE_MMMM_DE_YYYY)}`,
+                                       open: true
+                                    });
+                                 });
+                           }}
+                        >
+                           <FaEye />
+                        </CustomButton>
+                     </Tooltip>
+                  </PermissionRoute>
 
-            {
-               filterType: "date",
-               field: "startDate",
-               headerName: "Fecha inicio",
-
-               renderField: (v) => <>{formatDatetime(` ${v}`, true, DateFormat.DDDD_DD_DE_MMMM_DE_YYYY)}</>,
-               getFilterValue: (v) => formatDatetime(` ${v}`, true, DateFormat.DDDD_DD_DE_MMMM_DE_YYYY)
-            },
-            {
-               filterType: "date",
-
-               field: "endDate",
-               headerName: "Fecha fin",
-               renderField: (v) => <>{formatDatetime(` ${v}`, true, DateFormat.DDDD_DD_DE_MMMM_DE_YYYY)}</>,
-               getFilterValue: (v) => formatDatetime(` ${v}`, true, DateFormat.DDDD_DD_DE_MMMM_DE_YYYY)
-            },
-            { field: "totalPages", headerName: "Fojas" },
-
-            { field: "description", headerName: "Descripción" },
-            { field: "observation", headerName: "Observación", visibility: "expanded" }
-         ]}
-         conditionExcel={"tramite_exportar"}
-         paginate={[10, 20, 30]}
-         actions={(row) => (
-            <>
-               {/* <PermissionRoute requiredPermission={"tramite_eliminar"}> */}
-
-               {/* </PermissionRoute> */}
-            </>
-         )}
-      />
+                  <PermissionRoute requiredPermission={"tramite_ver"}>
+                     <Tooltip content="Excel">
+                        <CustomButton
+                           size="sm"
+                           variant="soft"
+                           color="green"
+                           onClick={() => {
+                              procedureData
+                                 .request({
+                                    method: "GET",
+                                    url: `procedure/detailsprocedure/${row.order_date}/${row.departament_id}`
+                                 })
+                                 .finally(() => {
+                                    setOpenExcel(true);
+                                 });
+                           }}
+                        >
+                           <RiFileExcel2Fill />
+                        </CustomButton>
+                     </Tooltip>
+                  </PermissionRoute>
+               </>
+            )}
+         />
+      </>
    );
 };
 export default TablePageProceudre;

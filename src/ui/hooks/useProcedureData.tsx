@@ -32,8 +32,9 @@ errorFieldsKey:"",
 
    return useGenericData<Procedure>({
       initialState,
+   
       prefix: "procedure",
-      autoFetch: true
+      autoFetch: false
    });
 };
 

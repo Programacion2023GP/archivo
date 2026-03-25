@@ -103,7 +103,7 @@ const CompositePage: React.FC<PropsCompositePage> = ({
          return (
             <AnimatePresence>
                {isOpen && (
-                  <div className="fixed inset-0 z-[120]">
+                  <div className="fixed inset-0 z-[600]">
                      {/* Backdrop con gesto táctil */}
                      <motion.div
                         className="absolute inset-0 bg-black/50 backdrop-blur-sm"
@@ -157,12 +157,11 @@ const CompositePage: React.FC<PropsCompositePage> = ({
                         >
                            <div className="w-24 h-1.5 bg-gray-300 rounded-full" />
                         </motion.div>
-
+                        
                         {/* Header móvil */}
                         <div className="px-6 pt-2 pb-4 bg-white border-b border-gray-200">
-                           <h2 className="text-xl font-bold text-gray-900 truncate pr-16 mt-2">{modalTitle || "Modal"}</h2>
+                           <h2 className="text-xl font-bold text-gray-900 truncate pr-16 mt-2">{modalTitle || ""}</h2>
                         </div>
-
                         {/* Contenido scrollable con safe areas para iOS */}
                         <div
                            className="overflow-y-auto"
@@ -185,7 +184,7 @@ const CompositePage: React.FC<PropsCompositePage> = ({
       return (
          <AnimatePresence>
             {isOpen && (
-               <div className="fixed inset-0 z-[120]">
+               <div className="fixed inset-0 z-[300]">
                   {/* Backdrop */}
                   <motion.div
                      className="absolute inset-0 bg-black/50 backdrop-blur-sm"
@@ -234,7 +233,7 @@ const CompositePage: React.FC<PropsCompositePage> = ({
 
                      {/* Header */}
                      <div className="sticky top-0 z-10 flex items-center justify-between px-6 py-4 bg-white border-b border-gray-200">
-                        <h2 className="text-xl font-bold text-gray-900 truncate">{modalTitle || "Modal"}</h2>
+                        <h2 className="text-xl font-bold text-gray-900 truncate">{modalTitle || ""}</h2>
 
                         <div className="flex items-center gap-2">
                            {!isMobile && (

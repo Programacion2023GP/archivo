@@ -11,9 +11,20 @@ interface ModalProps {
    titleIcon?: ReactNode;
    subtitle?: string;
    headerClassName?: string;
+   zIndex?: number | string; // New prop for custom z-index
 }
 
-const CustomModal = ({ isOpen, onClose, title, children, showCloseButton = true, titleIcon, subtitle, headerClassName = "" }: ModalProps) => {
+const CustomModal = ({
+   isOpen,
+   onClose,
+   title,
+   children,
+   showCloseButton = true,
+   titleIcon,
+   subtitle,
+   headerClassName = "",
+   zIndex = 200 // Default value
+}: ModalProps) => {
    useEffect(() => {
       if (isOpen) {
          document.body.style.overflow = "hidden";
@@ -29,7 +40,8 @@ const CustomModal = ({ isOpen, onClose, title, children, showCloseButton = true,
       <AnimatePresence>
          {isOpen && (
             <motion.div
-               className="fixed inset-0 z-[999] bg-white"
+               className="fixed inset-0 bg-white"
+               style={{ zIndex }} // Apply custom z-index
                initial={{ opacity: 0 }}
                animate={{ opacity: 1 }}
                exit={{ opacity: 0 }}

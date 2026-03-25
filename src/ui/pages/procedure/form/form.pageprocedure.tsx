@@ -6,23 +6,28 @@ import { GenericDataReturn } from "../../../../hooks/usegenericdata";
 import { Procedure } from "../../../../domain/models/procedure/procedure";
 import { CustomTableHandle } from "../../../components/table/customtable";
 import { Departament } from "../../../../domain/models/departament/departament";
+import { ProceduresCreatedAt } from "../../../../domain/models/procedurecreatedat/procedure_created_at";
+import { accessCreateProcedure } from "../utils/utils.pageprocedure";
 
 type TablePageProceudreProps = {
    procedureData: GenericDataReturn<Procedure>;
    departamentsData: GenericDataReturn<Departament>;
    editableRows: Procedure[];
+
    setEditableRows: Dispatch<SetStateAction<Procedure[]>>;
    tableRef: RefObject<CustomTableHandle<Procedure>>;
    modeTable: "create" | "edit" | "view" | "delete" | "editdelete";
    setModeTable: Dispatch<SetStateAction<"create" | "edit" | "view" | "delete" | "editdelete">>;
+   procedureCreatedAt: GenericDataReturn<ProceduresCreatedAt>;
 };
 
-const FormPageProcedure = ({ 
-   procedureData, 
-   editableRows, 
-   setEditableRows, 
-   tableRef, 
-   departamentsData, 
+const FormPageProcedure = ({
+   procedureData,
+   editableRows,
+   setEditableRows,
+   tableRef,
+   departamentsData,
+   procedureCreatedAt,
    modeTable,
    setModeTable
 }: TablePageProceudreProps) => {
@@ -34,7 +39,7 @@ const FormPageProcedure = ({
 
    const COLS = useMemo<ColumnDef[]>(
       () => [
-         { field: "boxes", headerName: "Cajas", width: 90 },
+         { field: "boxes", headerName: "Cajas", width: 90, required: true },
          {
             field: "process_id",
             headerName: "Título expediente",
@@ -43,13 +48,20 @@ const FormPageProcedure = ({
             options: items,
             idKey: "id",
             labelKey: "name",
-            selectableKey: "selectable"
+            selectableKey: "selectable",
+            required: true,
+            onChange(value, ctx) {
+               // ctx.setField('');
+               if (!accessCreateProcedure(procedureCreatedAt.items, items, value)) {
+                  ctx.setField("process_id", null);
+               }
+            }
          },
-         { field: "year", headerName: "Año", type: "number", width: 100, min: 1900, max: 2100, step: 1 },
-         { field: "startDate", headerName: "Fecha inicio", width: 140, type: "date" },
-         { field: "endDate", headerName: "Fecha final", width: 140, type: "date" },
-         { field: "description", headerName: "Descripción", width: 200 },
-         { field: "totalPages", headerName: "Total fojas", width: 110, type: "number", min: 0 },
+         { field: "year", headerName: "Año", type: "number", width: 100, min: 1900, max: 2100, step: 1, required: true },
+         { field: "startDate", headerName: "Fecha inicio", width: 140, type: "date", required: true },
+         { field: "endDate", headerName: "Fecha final", width: 140, type: "date", required: true },
+         { field: "description", headerName: "Descripción", width: 200, required: true },
+         { field: "totalPages", headerName: "Total fojas", width: 110, type: "number", min: 0, required: true },
          {
             field: "support",
             headerName: "Soporte documental",
@@ -72,16 +84,15 @@ const FormPageProcedure = ({
                { value: true, label: "Juridico", field: "legal_value" }
             ]
          },
-         { field: "retention_period_current", headerName: "at", type: "number", width: 100, min: 0,  step: 1 },
-         { field: "retention_period_archive", headerName: "ac", type: "number", width: 100, min: 0, step: 1 },
+         { field: "retention_period_current", headerName: "at", type: "number", width: 100, min: 0, step: 1, required: true },
+         { field: "retention_period_archive", headerName: "ac", type: "number", width: 100, min: 0, step: 1, required: true },
 
-        
          {
             field: "ubicat",
             headerName: "Ubicación en archivo de tramite",
             width: 260,
             type: "checkboxgroup",
-            
+
             items: [
                { value: true, label: "Inmueble", field: "location_building" },
                { value: true, label: "Mueble", field: "location_furniture" },
@@ -94,29 +105,55 @@ const FormPageProcedure = ({
    );
 
    const handleSubmit = (rows: Record<string, any>[]) => {
-      console.log("Rows to save:", rows);
+      console.log("empezamos aqui", procedureData.open);
 
-      if (modeTable === "delete") {
-         // En modo delete, enviar solo las filas con errores
+      if (rows.length == 0) {
+         return;
+      }
 
-         procedureData.postItem(rows as Procedure[]);
+      const today = new Date().toISOString().split("T")[0]; // Formato YYYY-MM-DD
+
+      if (modeTable == "delete") {
+         // Modo delete: actualizar status_id a 5 para todas las filas
+         const updatedRows = rows.map((row) => ({
+            ...(row as Procedure),
+            statu_id: 5
+         }));
+         procedureData.postItem(updatedRows as Procedure[], false, false).finally(() => {
+        
+            procedureCreatedAt.fetchData();
+                 procedureData.request({
+                    method: "GET",
+                    url: `procedure/detailsprocedure/${procedureData.constants.startDate ?? today}/${procedureData.constants.departament_id}`
+                 });
+           
+
+            
+         });
       } else {
-         procedureData.postItem(rows as Procedure[]);
+         // Modo create u otros: comportamiento normal
+         procedureData.postItem(rows as Procedure[], false, false).finally(() => {
+           
+            procedureCreatedAt.fetchData();
+                procedureData.request({
+                   method: "GET",
+                   url: `procedure/detailsprocedure/${procedureData.constants.startDate ?? today}/${procedureData.constants.departament_id}`
+                });
+           
+            
+         });
       }
 
       setEditableRows([]);
       setModeTable("create"); // ← resetear modo al cerrar
-
       tableRef.current?.clearSelection();
    };
 
    const handleErrorChange = (errors: { rowIndex: number; fields: string[]; description?: string }[]) => {
-      
       // Aquí puedes actualizar algún estado si necesitas
       // Por ejemplo, para mostrar un contador de errores
    };
 
-   
    return (
       <div style={{ height: "calc(100vh - 80px)" }}>
          <FormTable
@@ -129,21 +166,38 @@ const FormPageProcedure = ({
                year: "Año fuera de rango"
                // ...
             }}
-            selectionActions={[
-               {
-                  label: modeTable === "delete" ? "Rechazar selección" : "Guardar selección",
-                  color: modeTable === "delete" ? "#dc2626" : "#4f46e5",
-                  onClick: (indices, rows) => {
-                     // console.log("Filas seleccionadas:", rows);
-                     // if (modeTable === "delete") {
-                     //    // En modo delete, marcar todas las celdas de las filas seleccionadas
-                     //    console.log("Filas a rechazar:", rows);
-                     //    // Aquí podrías enviarlas directamente o mostrar confirmación
-                     // }
-                     // tableRef.current?.clearSelection();
-                  }
-               }
-            ]}
+            toolbarActions={
+               modeTable == "delete"
+                  ? [
+                       {
+                          label: "Marcar como revisado",
+                          color: "#059669",
+                          icon: <svg>...</svg>,
+                          onClick: (rows) => {
+                             procedureData
+                             .request({
+                                method: "POST",
+                                url: `procedure/changestatus`,
+                                data: {
+                                   status: 3,
+                                   startDate: String(procedureData.constants.startDate),
+                                   departament_id: procedureData.constants.departament_id
+                                 },
+                                 getData: false
+                              })
+                              .finally(() => {
+                                 procedureData.setOpen()
+                                 const today = new Date().toISOString().split("T")[0];
+                                 procedureData.request({
+                                    method: "GET",
+                                    url: `procedure/detailsprocedure/${procedureData.constants.startDate ?? today}/${procedureData.constants.departament_id}`
+                                 });
+                              });
+                          }
+                       }
+                    ]
+                  : undefined
+            }
             mode={modeTable}
             initialRows={editableRows}
             initialSize={30}

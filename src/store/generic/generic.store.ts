@@ -13,13 +13,16 @@ interface GenericStore<T extends object> {
    open: boolean;
    setOpen: () => void;
    fetchDynamic?: (repo: GenericRepository<any>, prefix: string) => Promise<any>;
-
+   constants: T;
+   setConstant: <T extends Record<string, any>>(key: keyof T, value: T[keyof T]) => void;
    fetchData: (repo: GenericRepository<T>) => Promise<T[]>;
    postItem: (item: T | T[], repo: GenericRepository<T>, formData?: boolean, fetchData?: boolean) => Promise<void>;
    handleChangeItem: (item: T) => void;
    removeItemData: (item: T, repo: GenericRepository<T>) => Promise<void>;
    request: (
       options: {
+         open?: boolean;
+
          data?: Partial<T>;
          url: string;
          method: "POST" | "PUT" | "GET" | "DELETE";
@@ -40,11 +43,19 @@ export const useGenericStore = <T extends { id?: number }>(initialValues: T) => 
       open: false,
       setOpen: () => set({ open: !get().open, initialValues }),
       prefix: "",
-
       initialValues,
+      constants: initialValues,
       items: [],
       loading: false,
       error: null,
+      setConstant: async <T extends Record<string, any>>(key: keyof T, value: T[keyof T]) => {
+         set((state: any) => ({
+            constants: {
+               ...state.constants,
+               [key]: value
+            }
+         }));
+      },
       setPrefix: async (prefix) => {
          set({ prefix: prefix });
       },
@@ -74,6 +85,7 @@ export const useGenericStore = <T extends { id?: number }>(initialValues: T) => 
       },
       request: async (
          options: {
+            open?:boolean,
             data: Partial<T>;
             url: string;
             method: "POST" | "PUT" | "GET" | "DELETE";

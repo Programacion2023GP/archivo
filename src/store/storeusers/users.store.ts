@@ -135,6 +135,9 @@ export const useUsersState = create<UsersState>((set, get) => ({
             localStorage.setItem("token", token);
             localStorage.setItem("permisos", JSON.stringify((data.data as any).permisos));
             localStorage.setItem("name", (data.data as any).user.fullName);
+            localStorage.setItem("role", (data.data as any).user.role);
+            localStorage.setItem("departament_id", (data.data as any).user.departament_id);
+
             localStorage.setItem("auth_id", (data.data as any).user.id);
             
              for (const module of MODULE_ORDER) {

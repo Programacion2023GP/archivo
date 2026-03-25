@@ -16,7 +16,7 @@ export const useGenericData = <T extends { id?: number }>({ initialState, prefix
    const useStore = useMemo(() => useGenericStore<T>(initialStateRef.current), []);
    const store = useStore();
 
-   const { fetchData, items, loading, setPrefix, request, open, setOpen, postItem, removeItemData, handleChangeItem, initialValues } = store;
+   const { fetchData, items, loading, setPrefix, request, open, setOpen, postItem, removeItemData, handleChangeItem, initialValues, constants, setConstant } = store;
 
    // Mantener la API estable
    const apiRef = useRef(new GenericApi<T>());
@@ -79,6 +79,8 @@ export const useGenericData = <T extends { id?: number }>({ initialState, prefix
       removeItemData: removeItemWithPrefix,
       request: requestWithPrefix,
       setPrefix,
+      setConstant,
+      constants,
       prefix
    };
 };
@@ -89,17 +91,21 @@ export type GenericDataReturn<T extends { id?: number }> = {
    initialValues: T;
    setOpen: () => void;
    handleChangeItem: (item: T) => void;
+   constants: T;
+   setConstant: <K extends keyof T>(key: K, value: T[K]) => void;
+
    fetchData: () => Promise<T[]>;
    refresh: () => Promise<T[]>;
-   postItem: (item: T|T[], formData?: boolean, fetchAfter?: boolean) => Promise<void>;
+   postItem: (item: T | T[], formData?: boolean, fetchAfter?: boolean) => Promise<void>;
    removeItemData: (item: T) => Promise<void>;
    request: (
       options: {
+         open?:boolean;
          data?: Partial<T>;
          url: string;
          method: "POST" | "PUT" | "GET" | "DELETE";
          formData?: boolean;
-         getData?:boolean
+         getData?: boolean;
       },
       callback?: {
          then?: () => void;

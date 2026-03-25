@@ -1,14 +1,11 @@
 /**
- * FormTable v10.4 — "Ivory Ledger"
+ * FormTable v10.5 — "Ivory Ledger"
  * ─────────────────────────────────────────────────────────────────────────────
- * CAMBIOS v10.4:
- *  · Nuevo modo "editdelete": celdas editables + marcado de errores desde
- *    initialRows (lee errorFieldsKey y pre-marca al montar).
- *  · Cuando el usuario edita una celda marcada en error, automáticamente
- *    cambia de rojo → verde (corregida). Marcador ✓ en lugar de ✕.
- *  · correctedCells: Map<rowIndex, Set<field>> para rastrear correcciones.
- *  · initialErrorMap: se calcula desde initialRows en modo editdelete.
- *  · isDeleteLike: helper interno que agrupa "delete" y "editdelete".
+ * CAMBIOS v10.5:
+ *  · Nueva prop `toolbarActions`: botones personalizados en la barra superior
+ *    junto al botón "Guardar". Cada acción recibe todas las filas actuales
+ *    de la tabla en el momento del click (rowsRef.current), sin necesidad
+ *    de selección previa ni de estar dentro del contexto de Formik.
  */
 
 import { useState, useCallback, useRef, useEffect, memo, createContext, useContext, useMemo, useImperativeHandle, forwardRef, useReducer } from "react";
@@ -91,6 +88,16 @@ export interface SelectionAction {
    color?: string;
    onClick: (indices: number[], rows: Record<string, any>[]) => void;
 }
+
+// ── NUEVO ──────────────────────────────────────────────────────────────────
+export interface ToolbarAction {
+   label: string;
+   icon?: React.ReactNode;
+   color?: string;
+   onClick: (rows: Record<string, any>[]) => void;
+}
+// ──────────────────────────────────────────────────────────────────────────
+
 export interface FormTableProps {
    columns: ColumnDef[];
    initialRows?: Record<string, any>[];
@@ -108,6 +115,9 @@ export interface FormTableProps {
    errorDescriptionPlaceholder?: string;
    onErrorChange?: (errors: { rowIndex: number; fields: string[]; description?: string }[]) => void;
    errorDescriptions?: Record<string, string>;
+   // ── NUEVO ──────────────────────────────────────────────────────────────
+   toolbarActions?: ToolbarAction[];
+   // ────────────────────────────────────────────────────────────────────────
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -161,7 +171,6 @@ const FILL_SZ = 7;
 const clamp = (v: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, v));
 const isBlank = (v: unknown) => v === "" || v === null || v === undefined;
 const rowIsEmpty = (row: Record<string, unknown>, cols: ColumnDef[]) => cols.every((c) => isBlank(row[c.field]));
-
 function fuzzyScore(str: string, query: string): number {
    if (!query) return 1;
    const s = str.toLowerCase(),
@@ -270,7 +279,6 @@ interface IErrorCtx {
    isCellError: (r: number, field: string) => boolean;
    toggleColError: (field: string, totalRows: number) => void;
    isColAllError: (field: string, totalRows: number) => boolean;
-   // editdelete
    correctedCells: Map<number, Set<string>>;
    markCorrected: (r: number, field: string) => void;
    isCorrected: (r: number, field: string) => boolean;
@@ -358,10 +366,10 @@ const TextCell = memo(({ name, col, isEditing }: { name: string; col: TextCol; i
          value={field.value ?? ""}
          name={field.name}
          onBlur={field.onBlur}
-         onChange={(e) => helpers.setValue(col.uppercase ? e.target.value.toUpperCase() : e.target.value)}
+         onChange={(e) => helpers.setValue(e.target.value.toUpperCase())}
          placeholder={isEditing ? (col.placeholder ?? "") : ""}
          readOnly={!isEditing}
-         style={{ ...iStyle(isEditing, col.align), color: isEditing ? T.ink0 : field.value ? T.ink1 : T.ink3 }}
+         style={{ ...iStyle(isEditing, col.align), color: isEditing ? T.ink0 : field.value ? T.ink1 : T.ink3, textTransform: "uppercase" }}
       />
    );
 });
@@ -1090,6 +1098,7 @@ const Cell = memo(
       r,
       c,
       col,
+      columns,
       containerRef,
       onCellAction,
       isDescriptionCol = false,
@@ -1098,6 +1107,7 @@ const Cell = memo(
       r: number;
       c: number;
       col: ColumnDef;
+      columns: ColumnDef[];
       containerRef: React.RefObject<HTMLDivElement>;
       onCellAction: (r: number, c: number, action: "click" | "dblclick") => void;
       isDescriptionCol?: boolean;
@@ -1121,28 +1131,40 @@ const Cell = memo(
       const isEditDeleteMode = mode === "editdelete";
       const isDeleteLike = isDeleteMode || isEditDeleteMode;
 
-    const isReadOnly = useMemo(() => {
-       if (isDeleteMode) return !isDescriptionCol;
-       if (isEditDeleteMode) return false;
-       if (mode === "create" || mode === "edit") return false;
-       if (mode === "view") return !col.editableInModes?.includes(mode); // ← sin excepción checkbox
-       return false;
-    }, [mode, isChk, isChkG, col, isDescriptionCol, isDeleteMode, isEditDeleteMode]);
+      const { values } = useFormikContext<{ rows: any[] }>();
+      const row = values.rows[r] ?? {};
+
+      const hasAnyData = useMemo(
+         () =>
+            columns.some((c) => {
+               const val = row[c.field];
+               return val !== undefined && val !== null && val !== "";
+            }),
+         [r, columns, row]
+      );
+      const isRequiredAndEmpty = col.required && hasAnyData && (field.value === undefined || field.value === null || field.value === "");
+
+      const isReadOnly = useMemo(() => {
+         if (isDeleteMode) return !isDescriptionCol;
+         if (isEditDeleteMode) return false;
+         if (mode === "create" || mode === "edit") return false;
+         if (mode === "view") return !col.editableInModes?.includes(mode);
+         return false;
+      }, [mode, isChk, isChkG, col, isDescriptionCol, isDeleteMode, isEditDeleteMode]);
 
       const isEditing = isMe && nav.mode === "edit" && !isReadOnly;
       const isComputed = !!col.compute;
       const inFill = inRange(r, c);
       const rowSel = isSelected(r);
-      const colErr = col.validate ? col.validate(field.value, {}) : undefined;
-      const hasErr = (meta.touched && !!meta.error) || !!colErr;
-      const errMsg = hasErr ? colErr || String(meta.error) : undefined;
 
-      // Error/corrected state
-const cellHasError = (isDeleteLike || mode === "view") && !isDescriptionCol && isCellError(r, col.field);
+      const colErr = col.validate ? col.validate(field.value, {}) : undefined;
+      const hasErr = (meta.touched && !!meta.error) || !!colErr || isRequiredAndEmpty;
+      const errMsg = isRequiredAndEmpty ? `${col.headerName} es requerido` : hasErr ? colErr || String(meta.error) : undefined;
+
+      const cellHasError = (isDeleteLike || mode === "view") && !isDescriptionCol && isCellError(r, col.field);
       const cellIsCorrected = isEditDeleteMode && !isDescriptionCol && cellHasError && isCorrected(r, col.field);
       const isErrCell = cellHasError && !cellIsCorrected;
 
-      // Auto-detect correction: when value changes in editdelete mode
       const prevValueRef = useRef(field.value);
       const mountedRef = useRef(false);
       useEffect(() => {
@@ -1170,6 +1192,7 @@ const cellHasError = (isDeleteLike || mode === "view") && !isDescriptionCol && i
       const getCellBg = () => {
          if (cellIsCorrected) return T.emStrong;
          if (isErrCell) return T.rosStrong;
+         if (isRequiredAndEmpty && !isDeleteLike) return T.rosDim;
          if (isDeleteLike && isMe) return isDescriptionCol ? "rgba(79,70,229,0.04)" : isDeleteMode ? T.rosDim : T.indDim;
          if (!isDeleteLike) {
             if (isReadOnly) return `repeating-linear-gradient(45deg, transparent, transparent 3px, rgba(0,0,0,0.015) 3px, rgba(0,0,0,0.015) 6px)`;
@@ -1184,6 +1207,7 @@ const cellHasError = (isDeleteLike || mode === "view") && !isDescriptionCol && i
       const getCellOutline = () => {
          if (cellIsCorrected) return `2px solid ${T.emRim}`;
          if (isErrCell) return `2px solid ${T.ros}`;
+         if (isRequiredAndEmpty && !isDeleteLike) return `2px solid ${T.ros}`;
          if (isDeleteLike && isMe) return isDescriptionCol ? `2px solid ${T.ind}` : isDeleteMode ? `2px solid ${T.rosRim}` : `2px solid ${T.ind}`;
          if (!isDeleteLike) {
             if (isMe && !isReadOnly) return `2px solid ${T.ind}`;
@@ -1228,8 +1252,8 @@ const cellHasError = (isDeleteLike || mode === "view") && !isDescriptionCol && i
             style={{
                padding: 0,
                height: ROW_H,
-               borderBottom: `1px solid ${isErrCell ? T.rosRim : cellIsCorrected ? T.emRim : T.line0}`,
-               borderRight: `1px solid ${isErrCell ? T.rosRim : cellIsCorrected ? T.emRim : T.line0}`,
+               borderBottom: `1px solid ${isErrCell ? T.rosRim : cellIsCorrected ? T.emRim : isRequiredAndEmpty ? T.rosRim : T.line0}`,
+               borderRight: `1px solid ${isErrCell ? T.rosRim : cellIsCorrected ? T.emRim : isRequiredAndEmpty ? T.rosRim : T.line0}`,
                width: col.width,
                minWidth: col.minWidth ?? 80,
                position: "relative",
@@ -1265,8 +1289,32 @@ const cellHasError = (isDeleteLike || mode === "view") && !isDescriptionCol && i
                )}
             </div>
 
-            {!isReadOnly && !isDeleteLike && <FillHandle r={r} c={c} />}
+            {isRequiredAndEmpty && !isDeleteLike && !isEditing && (
+               <div
+                  style={{
+                     position: "absolute",
+                     top: "100%",
+                     left: 0,
+                     marginTop: 2,
+                     background: T.rosDim,
+                     color: T.ros,
+                     fontSize: 9,
+                     fontFamily: T.mono,
+                     fontWeight: 500,
+                     padding: "2px 8px",
+                     borderRadius: 3,
+                     whiteSpace: "nowrap",
+                     zIndex: 30,
+                     pointerEvents: "none",
+                     borderLeft: `2px solid ${T.ros}`,
+                     animation: "ft-slideDown .1s ease"
+                  }}
+               >
+                  ⚠ Este campo es obligatorio
+               </div>
+            )}
 
+            {!isReadOnly && (!isDeleteLike || isDescriptionCol) && <FillHandle r={r} c={c} />}
             {isEditing && !isChk && !isChkG && (
                <div
                   style={{
@@ -1281,8 +1329,6 @@ const cellHasError = (isDeleteLike || mode === "view") && !isDescriptionCol && i
                   }}
                />
             )}
-
-            {/* Error marker */}
             {isErrCell && (
                <div
                   style={{
@@ -1301,8 +1347,6 @@ const cellHasError = (isDeleteLike || mode === "view") && !isDescriptionCol && i
                   ✕
                </div>
             )}
-
-            {/* Corrected marker */}
             {cellIsCorrected && (
                <div
                   style={{
@@ -1321,7 +1365,6 @@ const cellHasError = (isDeleteLike || mode === "view") && !isDescriptionCol && i
                   ✓
                </div>
             )}
-
             {isComputed && !isDeleteLike && (
                <div
                   style={{
@@ -1340,8 +1383,7 @@ const cellHasError = (isDeleteLike || mode === "view") && !isDescriptionCol && i
                   ƒ
                </div>
             )}
-
-            {errMsg && isMe && (
+            {errMsg && isMe && !isRequiredAndEmpty && (
                <div
                   style={{
                      position: "absolute",
@@ -1371,6 +1413,7 @@ const cellHasError = (isDeleteLike || mode === "view") && !isDescriptionCol && i
       p.r === n.r &&
       p.c === n.c &&
       p.col === n.col &&
+      p.columns === n.columns &&
       p.containerRef === n.containerRef &&
       p.onCellAction === n.onCellAction &&
       p.isDescriptionCol === n.isDescriptionCol
@@ -1416,7 +1459,6 @@ const Row = memo(
       const errFields = errorMap.get(r);
       const corrFields = correctedCells.get(r);
       const isErrRow = (errFields?.size ?? 0) > 0;
-      // In editdelete: row is "corrected" only if ALL error fields are corrected
       const isFullyCorrected =
          isEditDeleteMode && isErrRow && errFields !== undefined && corrFields !== undefined && Array.from(errFields).every((f) => corrFields.has(f));
       const hasAnyErr = isErrRow && !isFullyCorrected;
@@ -1476,6 +1518,7 @@ const Row = memo(
                   r={r}
                   c={-1}
                   col={descriptionCol}
+                  columns={columns}
                   containerRef={containerRef}
                   onCellAction={onCellAction}
                   isDescriptionCol={true}
@@ -1483,7 +1526,7 @@ const Row = memo(
                />
             )}
             {columns.map((col, c) => (
-               <Cell key={col.field} r={r} c={c} col={col} containerRef={containerRef} onCellAction={onCellAction} isDescriptionCol={false} />
+               <Cell key={col.field} r={r} c={c} col={col} columns={columns} containerRef={containerRef} onCellAction={onCellAction} isDescriptionCol={false} />
             ))}
          </tr>
       );
@@ -1673,7 +1716,7 @@ const Header = memo(
                            </code>
                            <span style={{ fontSize: 12, fontFamily: T.sans, fontWeight: 600, color: colAllErr ? T.ros : active ? T.ink0 : T.ink1 }}>
                               {col.headerName}
-                              {col.required && !colAllErr && <span style={{ color: T.ros, marginLeft: 3, fontSize: 11 }}>*</span>}
+                              {col.required && !colAllErr && <span style={{ color: T.ros, marginLeft: 3, fontSize: 11 }}>*</span>}{" "}
                            </span>
                            {isDeleteMode && (
                               <div
@@ -1825,7 +1868,10 @@ const InnerTable = ({
    errorFieldsKey,
    descriptionCol,
    descriptionPlaceholder,
-   initialErrorMap
+   initialErrorMap,
+   // ── NUEVO ──────────────────────────────────────────────────────────────
+   toolbarActions
+   // ────────────────────────────────────────────────────────────────────────
 }: {
    columns: ColumnDef[];
    showRowNum: boolean;
@@ -1842,6 +1888,9 @@ const InnerTable = ({
    descriptionCol?: ColumnDef;
    descriptionPlaceholder?: string;
    initialErrorMap?: Map<number, Set<string>>;
+   // ── NUEVO ──────────────────────────────────────────────────────────────
+   toolbarActions?: ToolbarAction[];
+   // ────────────────────────────────────────────────────────────────────────
 }) => {
    const { values, setFieldValue, isSubmitting } = useFormikContext<{ rows: any[] }>();
    const navRef = useRef<NavState>({ r: 0, c: 0, mode: "nav" });
@@ -1864,6 +1913,10 @@ const InnerTable = ({
    const isEditDeleteMode = mode === "editdelete";
    const isDeleteLike = isDeleteMode || isEditDeleteMode;
    const hasDescCol = isDeleteLike && !!descriptionCol;
+
+   useEffect(() => {
+      if (initialErrorMap && initialErrorMap.size > 0) setErrorMap(new Map(initialErrorMap));
+   }, [initialErrorMap]);
 
    if (externalRef) {
       externalRef.current = {
@@ -2191,15 +2244,29 @@ const InnerTable = ({
          fillRef.current = null;
          return;
       }
-      const col = colsRef.current[fs.srcCol],
-         value = getCellVal(rowsRef.current[fs.srcRow], col);
+      if (fs.srcCol === -1 && descriptionCol) {
+         const value = rowsRef.current[fs.srcRow]?.[descriptionCol.field];
+         const lo = Math.min(fs.srcRow, fs.endRow),
+            hi = Math.max(fs.srcRow, fs.endRow);
+         for (let ri = lo; ri <= hi; ri++) {
+            if (ri !== fs.srcRow) setFVRef.current(`rows.${ri}.${descriptionCol.field}`, value);
+         }
+         setFill(null);
+         fillRef.current = null;
+         requestAnimationFrame(() => containerRef.current?.focus());
+         return;
+      }
+      const col = colsRef.current[fs.srcCol];
+      const value = getCellVal(rowsRef.current[fs.srcRow], col);
       const lo = Math.min(fs.srcRow, fs.endRow),
          hi = Math.max(fs.srcRow, fs.endRow);
-      for (let ri = lo; ri <= hi; ri++) if (ri !== fs.srcRow) setCellVal(ri, col, value);
+      for (let ri = lo; ri <= hi; ri++) {
+         if (ri !== fs.srcRow) setCellVal(ri, col, value);
+      }
       setFill(null);
       fillRef.current = null;
       requestAnimationFrame(() => containerRef.current?.focus());
-   }, [getCellVal, setCellVal]);
+   }, [getCellVal, setCellVal, descriptionCol]);
 
    const inRange = useCallback(
       (r: number, c: number) => {
@@ -2253,7 +2320,7 @@ const InnerTable = ({
 
          const isCellEditable = (colIdx: number) => {
             if (isDeleteMode) return colIdx === -1 && hasDescCol;
-            if (isEditDeleteMode) return true; // todo editable
+            if (isEditDeleteMode) return true;
             if (colIdx < 0 || colIdx >= cols.length) return false;
             const col = cols[colIdx];
             if (!col) return false;
@@ -2514,6 +2581,7 @@ const InnerTable = ({
    useEffect(() => {
       const el = containerRef.current;
       if (!el) return;
+      if (isDeleteLike || mode === "view") return;
       const h = () => {
          if (busyRef.current) return;
          if (el.scrollHeight - el.scrollTop - el.clientHeight < 400) {
@@ -2526,7 +2594,7 @@ const InnerTable = ({
       };
       el.addEventListener("scroll", h, { passive: true });
       return () => el.removeEventListener("scroll", h);
-   }, [setFieldValue, emptyRow, chunkSize]);
+   }, [setFieldValue, emptyRow, chunkSize, isDeleteLike, mode]);
 
    const colCount = columns.length + (hasDescCol ? 1 : 0);
    const filledCount = useMemo(() => values.rows.filter((row) => !rowIsEmpty(row, columns)).length, [values.rows, columns]);
@@ -2717,6 +2785,10 @@ const InnerTable = ({
                               )}
                               {fill ? "FILL" : navRef.current.mode === "edit" ? "EDIT" : "NAV"}
                            </span>
+
+                           {/* ── NUEVO: toolbarActions ────────────────────────────────────────── */}
+                           {/* ── NUEVO: toolbarActions ────────────────────────────────────────── */}
+                           {/* ── NUEVO: toolbarActions ────────────────────────────────────────── */}
                            {hasSubmit && mode !== "view" && (
                               <button
                                  type="submit"
@@ -2754,6 +2826,43 @@ const InnerTable = ({
                                  {isSubmitting ? "Guardando…" : "Guardar"}
                               </button>
                            )}
+                           {toolbarActions && toolbarActions.length > 0 && (
+                              <>
+                                 <div style={{ width: 2, height: 14, background: T.line2, flexShrink: 0 }} />
+                                 {toolbarActions.map(({ label, icon, color, onClick }) => (
+                                    <button
+                                       key={label}
+                                       type="button"
+                                       onClick={() => onClick(rowsRef.current)}
+                                       style={{
+                                          display: "inline-flex",
+                                          alignItems: "center",
+                                          gap: 6,
+                                          padding: "0 14px",
+                                          background: color ?? T.ink1,
+                                          border: `1px solid ${T.line2}`,
+                                          borderRadius: 5,
+                                          color: "white",
+                                          fontSize: 12,
+                                          fontFamily: T.sans,
+                                          fontWeight: 600,
+                                          cursor: "pointer",
+                                          // transition: "border-color .12s, color .12s",
+                                          height: 26,
+                                          width: "auto",
+                                          minWidth: "fit-content",
+                                          flexShrink: 0,
+                                          flexGrow: 0,
+                                          whiteSpace: "nowrap"
+                                       }}
+                                    >
+                                       {icon && <span style={{ display: "flex", alignItems: "center", fontSize: 13 }}>{icon}</span>}
+                                       {label}
+                                    </button>
+                                 ))}
+                              </>
+                           )}
+                           {/* ─────────────────────────────────────────────────────────────────── */}
                         </div>
                      </div>
 
@@ -2936,7 +3045,10 @@ const FormTable = forwardRef<FormTableHandle, FormTableProps>((props, ref) => {
       errorDescriptionField,
       errorDescriptionPlaceholder,
       onErrorChange,
-      errorDescriptions = {}
+      errorDescriptions = {},
+      // ── NUEVO ──────────────────────────────────────────────────────────────
+      toolbarActions
+      // ────────────────────────────────────────────────────────────────────────
    } = props;
 
    const isDeleteMode = mode === "delete";
@@ -2973,7 +3085,6 @@ const FormTable = forwardRef<FormTableHandle, FormTableProps>((props, ref) => {
 
    const factory = useMemo(() => emptyRow ?? makeEmpty, [emptyRow, makeEmpty]);
 
-   // DESPUÉS — congelar initialValues en un ref para que no cambie con el modo:
    const initialValuesRef = useRef<{ rows: Record<string, any>[] } | null>(null);
 
    const initialValues = useMemo(() => {
@@ -2988,47 +3099,95 @@ const FormTable = forwardRef<FormTableHandle, FormTableProps>((props, ref) => {
       }
       return { rows: base };
    }, [initialRows, initialSize, factory, errorDescriptionField, errorFieldsKey]);
-   // ↑ quitamos mode e isDeleteLike de las deps — el padding se calcula una sola vez
 
-   // Pre-compute errorMap from initialRows for editdelete mode
    const initialErrorMap = useMemo(() => {
-      if (!isDeleteLike || !errorFieldsKey) return undefined; // ← isDeleteLike en lugar de isEditDeleteMode
+      if (!errorFieldsKey) return undefined;
+      if (mode !== "delete" && mode !== "editdelete") return undefined;
       const map = new Map<number, Set<string>>();
       initialRows.forEach((row, i) => {
-         const raw = row[errorFieldsKey];
-         if (raw && typeof raw === "string" && raw.trim() !== "") {
-            const fields = raw
-               .split(",")
-               .map((f: string) => f.trim())
-               .filter(Boolean);
-            if (fields.length > 0) map.set(i, new Set(fields));
+         const hasData = columns.some((col) => {
+            const value = row[col.field];
+            return value !== undefined && value !== null && value !== "";
+         });
+         if (hasData) {
+            const raw = row[errorFieldsKey];
+            if (raw && typeof raw === "string" && raw.trim() !== "") {
+               const fields = raw
+                  .split(",")
+                  .map((f: string) => f.trim())
+                  .filter(Boolean);
+               if (fields.length > 0) map.set(i, new Set(fields));
+            }
          }
       });
       return map;
-   }, [isDeleteLike, errorFieldsKey, initialRows]);
+   }, [mode, errorFieldsKey, initialRows, columns]);
 
    const formikRef = useRef<FormikProps<any>>(null);
    const innerRef = useRef<{ getSelectedRows: () => number[]; clearSelection: () => void; getErrorState: () => any[] } | null>(null);
 
    const internalValidate = useCallback(
       (values: { rows: Record<string, any>[] }) => {
-         if (!validate) return {};
-         const nullable = values.rows.map((r) => (rowIsEmpty(r, columns) ? null : r));
-         const errs = validate(nullable) ?? [];
-         return errs.some(Boolean) ? { rows: errs } : {};
+         const errors: any = {};
+         const rowErrors: any[] = [];
+         values.rows.forEach((row, rowIndex) => {
+            const hasAnyData = columns.some((col) => {
+               const value = row[col.field];
+               return value !== undefined && value !== null && value !== "";
+            });
+            if (!hasAnyData) {
+               rowErrors[rowIndex] = undefined;
+               return;
+            }
+            const fieldErrors: Record<string, string> = {};
+            columns.forEach((col) => {
+               if (col.required) {
+                  const value = row[col.field];
+                  const isEmpty = value === undefined || value === null || value === "";
+                  if (isEmpty) fieldErrors[col.field] = `${col.headerName} es requerido`;
+               }
+               if (col.validate) {
+                  const error = col.validate(row[col.field], row);
+                  if (error) fieldErrors[col.field] = error;
+               }
+            });
+            if (Object.keys(fieldErrors).length > 0) rowErrors[rowIndex] = fieldErrors;
+         });
+         if (validate) {
+            const nullableRows = values.rows.map((row) =>
+               columns.some((col) => {
+                  const value = row[col.field];
+                  return value !== undefined && value !== null && value !== "";
+               })
+                  ? row
+                  : null
+            );
+            const customErrors = validate(nullableRows) ?? [];
+            customErrors.forEach((customErr, idx) => {
+               if (customErr) {
+                  if (rowErrors[idx]) rowErrors[idx] = { ...rowErrors[idx], ...customErr };
+                  else rowErrors[idx] = customErr;
+               }
+            });
+         }
+         if (rowErrors.some((err) => err !== undefined)) errors.rows = rowErrors;
+         return errors;
       },
       [validate, columns]
    );
 
    const handleSubmit = useCallback(
       async (values: { rows: Record<string, any>[] }) => {
-         if (isDeleteLike) {
-            await onSubmit?.(values.rows);
-         } else {
-            await onSubmit?.(values.rows.filter((r) => !rowIsEmpty(r, columns)));
-         }
+         if (!onSubmit) return;
+         const rowsWithData = values.rows.filter((row) =>
+            columns.some((col) => {
+               const value = row[col.field];
+               return value !== undefined && value !== null && value !== "";
+            })
+         );
+         await onSubmit(rowsWithData);
       },
-      [onSubmit, columns, isDeleteLike]
+      [onSubmit, columns]
    );
 
    useImperativeHandle(
@@ -3112,6 +3271,9 @@ const FormTable = forwardRef<FormTableHandle, FormTableProps>((props, ref) => {
                         descriptionCol={descriptionCol}
                         descriptionPlaceholder={errorDescriptionPlaceholder}
                         initialErrorMap={initialErrorMap}
+                        // ── NUEVO ──────────────────────────────────────────
+                        toolbarActions={toolbarActions}
+                        // ───────────────────────────────────────────────────
                      />
                   </Form>
                )}

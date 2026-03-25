@@ -6,9 +6,14 @@ export type Procedure = {
    description: string;
    departament_id: number;
    proccess_id?: number;
+   status?: number | string;
 
+   process?: string;
    at: number;
    ac: number;
+   departament?: string;
+   serie?: string;
+
    // children_recursive: any[];
 
    total?: number;
@@ -18,6 +23,7 @@ export type Procedure = {
    boxes?: number;
    process_id?: number;
    user_id?: number;
+   user_created?: string;
 
    startDate?: string | Date;
    endDate?: string | Date;
@@ -26,7 +32,8 @@ export type Procedure = {
    fisic?: boolean;
 
    totalPages?: number;
-
+   archiveCode?: string;
+   fileNumber?: string;
    observation?: string;
 
    administrative_value?: boolean;
