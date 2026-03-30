@@ -13,12 +13,13 @@ type TablePageProceudreProps = {
    procedureData: GenericDataReturn<Procedure>;
    departamentsData: GenericDataReturn<Departament>;
    editableRows: Procedure[];
-
+   signatureByUser: Dispatch<SetStateAction<string>>;
    setEditableRows: Dispatch<SetStateAction<Procedure[]>>;
    tableRef: RefObject<CustomTableHandle<Procedure>>;
    modeTable: "create" | "edit" | "view" | "delete" | "editdelete";
    setModeTable: Dispatch<SetStateAction<"create" | "edit" | "view" | "delete" | "editdelete">>;
    procedureCreatedAt: GenericDataReturn<ProceduresCreatedAt>;
+   setDeptoDetails: Dispatch<SetStateAction<{ open: boolean; name: string }>>;
 };
 
 const FormPageProcedure = ({
@@ -29,7 +30,9 @@ const FormPageProcedure = ({
    departamentsData,
    procedureCreatedAt,
    modeTable,
-   setModeTable
+   setModeTable,
+   signatureByUser,
+   setDeptoDetails
 }: TablePageProceudreProps) => {
    const { items, request } = useProccessData();
 
@@ -105,7 +108,7 @@ const FormPageProcedure = ({
    );
 
    const handleSubmit = (rows: Record<string, any>[]) => {
-      console.log("empezamos aqui", procedureData.open);
+      console.log("empezamos aqui", procedureData.open, procedureData.constants.startDate);
 
       if (rows.length == 0) {
          return;
@@ -120,27 +123,24 @@ const FormPageProcedure = ({
             statu_id: 5
          }));
          procedureData.postItem(updatedRows as Procedure[], false, false).finally(() => {
-        
             procedureCreatedAt.fetchData();
-                 procedureData.request({
-                    method: "GET",
-                    url: `procedure/detailsprocedure/${procedureData.constants.startDate ?? today}/${procedureData.constants.departament_id}`
-                 });
-           
-
-            
+            const startDate = procedureData.constants.startDate || today;
+            const departamentId = procedureData.constants.departament_id || 0;
+            procedureData.request({
+               method: "GET",
+               url: `procedure/detailsprocedure/${startDate}/${departamentId}`
+            });
          });
       } else {
          // Modo create u otros: comportamiento normal
          procedureData.postItem(rows as Procedure[], false, false).finally(() => {
-           
             procedureCreatedAt.fetchData();
-                procedureData.request({
-                   method: "GET",
-                   url: `procedure/detailsprocedure/${procedureData.constants.startDate ?? today}/${procedureData.constants.departament_id}`
-                });
-           
-            
+            const startDate = procedureData.constants.startDate || today;
+            const departamentId = procedureData.constants.departament_id || 0;
+            procedureData.request({
+               method: "GET",
+               url: `procedure/detailsprocedure/${startDate}/${departamentId}`
+            });
          });
       }
 
@@ -149,11 +149,44 @@ const FormPageProcedure = ({
       tableRef.current?.clearSelection();
    };
 
-   const handleErrorChange = (errors: { rowIndex: number; fields: string[]; description?: string }[]) => {
-      // Aquí puedes actualizar algún estado si necesitas
-      // Por ejemplo, para mostrar un contador de errores
-   };
+type SignatureAction = {
+   color: string;
+   label: string;
+   onClick: () => void;
+} | null;
 
+const signaturePermissionUser = (): SignatureAction => {
+   const authId = localStorage.getItem("auth_id");
+   const userName = localStorage.getItem("name");
+
+   if (Number(procedureCreatedAt.constants.user_id) === Number(authId)) {
+      return {
+         color: "#030500",
+         label: "Firmar",
+         onClick: () => {
+            procedureCreatedAt.request({
+               method: "POST",
+               url: "signature/byuser",
+               // getData: false,
+               getData:true,
+               data: {
+                  user_id: procedureCreatedAt.constants.user_id
+               }
+            }).then(()=>{
+               procedureData.setOpen()
+              setDeptoDetails(prev=>({
+               ...prev,
+               open:false,
+              }))
+               console.log("aqui")
+               signatureByUser(userName ?? "");
+            });
+         }
+      };
+   }
+
+   return null;
+};
    return (
       <div style={{ height: "calc(100vh - 80px)" }}>
          <FormTable
@@ -175,35 +208,37 @@ const FormPageProcedure = ({
                           icon: <svg>...</svg>,
                           onClick: (rows) => {
                              procedureData
-                             .request({
-                                method: "POST",
-                                url: `procedure/changestatus`,
-                                data: {
-                                   status: 3,
-                                   startDate: String(procedureData.constants.startDate),
-                                   departament_id: procedureData.constants.departament_id
-                                 },
-                                 getData: false
-                              })
-                              .finally(() => {
-                                 procedureData.setOpen()
-                                 const today = new Date().toISOString().split("T")[0];
-                                 procedureData.request({
-                                    method: "GET",
-                                    url: `procedure/detailsprocedure/${procedureData.constants.startDate ?? today}/${procedureData.constants.departament_id}`
-                                 });
-                              });
+                                .request({
+                                   method: "POST",
+                                   url: `procedure/changestatus`,
+                                   data: {
+                                      status: 3,
+                                      startDate: String(procedureData.constants.startDate),
+                                      departament_id: procedureData.constants.departament_id
+                                   },
+                                   getData: false
+                                })
+                                .finally(() => {
+                                   procedureData.setOpen();
+                                   const today = new Date().toISOString().split("T")[0];
+                                   procedureCreatedAt.fetchData();
+                                   procedureData.request({
+                                      method: "GET",
+                                      url: `procedure/detailsprocedure/${procedureData.constants.startDate ?? today}/${procedureData.constants.departament_id}`
+                                   });
+                                });
                           }
-                       }
-                    ]
-                  : undefined
+                       },
+                       signaturePermissionUser()
+                    ].filter(Boolean)
+                  : []
             }
             mode={modeTable}
             initialRows={editableRows}
             initialSize={30}
             chunkSize={2}
             onSubmit={handleSubmit}
-            onErrorChange={handleErrorChange}
+            // onErrorChange={handleErrorChange}
             showRowNum={true}
          />
       </div>

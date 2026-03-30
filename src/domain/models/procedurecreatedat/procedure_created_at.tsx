@@ -17,7 +17,9 @@ export interface ProceduresCreatedAt {
 
 
 export interface AutorizationChain {
-   level:number,
-   group:string,
-   name:string
+   level: number;
+   group: string;
+   name: string;
+   user_id?: number;
+   signedBy: boolean;
 }

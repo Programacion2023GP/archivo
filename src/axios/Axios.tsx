@@ -49,12 +49,14 @@ export const GetAxios = async (url: string) => {
     const response = await axiosInstance.get(url);
     return response.data;
   } catch (error: any) {
+
     console.error("Error en la solicitud:", error);
     if (error.response?.status === 401) {
       localStorage.clear();
       // window.location.href = "/";
     }
-  }
+      throw error;
+   }
 };
 
 // 🧩 AxiosRequest mejorado: usa AxiosFiles si detecta archivos

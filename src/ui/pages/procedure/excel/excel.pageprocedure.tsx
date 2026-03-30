@@ -4,22 +4,31 @@ import { GenericDataReturn } from "../../../../hooks/usegenericdata";
 import { Cell, Empty, Row, Sheet, Spacer, Workbook } from "../../../components/excel/customexcel";
 import CustomModal from "../../../components/modal/modal";
 import { DateFormat, formatDatetime } from "../../../../utils/formats";
+import { ListAutorized } from "../../../../domain/models/listautorized/listautorized";
+
 type TablePageProceudreProps = {
    procedureData: GenericDataReturn<Procedure>;
+   listAutorized: GenericDataReturn<ListAutorized>;
    open: boolean;
    setOpen: Dispatch<SetStateAction<boolean>>;
 };
-const ExcelPageProcedure = ({ procedureData, open, setOpen }: TablePageProceudreProps) => {
+
+const ExcelPageProcedure = ({ procedureData, open, setOpen, listAutorized }: TablePageProceudreProps) => {
    const FONDO = "R. AYUNTAMIENTO DE GOMEZ PALACIO, DGO";
    const SECCION = procedureData?.items[0]?.departament || "";
    const SERIE = procedureData?.items[0]?.serie || "";
    const LEYENDA = "EL PRESENTE INVENTARIO CONSTA DE 1 HOJA Y AMPARA LA CANTIDAD DE 3 EXPEDIENTES DE LOS AÑOS EXTREMOS 2024-2025";
    const FECHA_ENTREGA = "PENDIENTE";
-  
+
    const R = "#C41E3A";
    const T = "thin";
-  const COLS = [42, 48, 95, 75, 80, 44, 44, 44, 40, 50, 52, 52, 44, 60, 65, 46, 40, 40, 65];
-  const N = COLS.length; // 20
+   const COLS = [42, 48, 95, 75, 80, 44, 44, 44, 40, 50, 52, 52, 44, 60, 65, 46, 40, 40, 65];
+   const N = COLS.length;
+
+   // Filtrar usuarios que firmaron (signedBy = true)
+   // Usamos fullName en lugar de name
+   const autorizados = listAutorized?.items?.filter((item) => item.signedBy === true) || [];
+
    return (
       <CustomModal
          isOpen={open}
@@ -118,7 +127,6 @@ const ExcelPageProcedure = ({ procedureData, open, setOpen }: TablePageProceudre
                   <Cell bold border={T} fontSize={7}>
                      JURÍDICO
                   </Cell>
-
                   <Cell bold border={T} fontSize={7} wrap>
                      {"PLAZO DE\nCONSERVACIÓN\nTRÁMITE"}
                   </Cell>
@@ -176,7 +184,6 @@ const ExcelPageProcedure = ({ procedureData, open, setOpen }: TablePageProceudre
                      <Cell border={T} fontSize={9}>
                         {e.legal_value ? "✓" : "X"}
                      </Cell>
-
                      <Cell border={T} fontSize={9}>
                         {e.retention_period_current ? "✓" : "X"}
                      </Cell>
@@ -199,6 +206,8 @@ const ExcelPageProcedure = ({ procedureData, open, setOpen }: TablePageProceudre
                ))}
 
                <Spacer height={14} />
+
+               {/* Fila de títulos: ELABORÓ, REVISÓ, AUTORIZÓ (dinámico) */}
                <Row height={20}>
                   <Cell span={6} bold fontSize={8} border={{ all: R }}>
                      ELABORÓ (20)
@@ -208,10 +217,23 @@ const ExcelPageProcedure = ({ procedureData, open, setOpen }: TablePageProceudre
                      REVISÓ (21)
                   </Cell>
                   <Empty span={2} />
-                  <Cell span={4} bold fontSize={8} border={{ all: R }}>
-                     AUTORIZÓ (22)
-                  </Cell>
+
+                  {/* Títulos dinámicos para cada autorizado */}
+                  {autorizados.map((autorizado, index) => (
+                     <Cell key={`title-${autorizado.id}`} span={4} bold fontSize={8} border={{ all: R }}>
+                        AUTORIZÓ {autorizados.length > 1 ? `(${index + 1})` : "(22)"}
+                     </Cell>
+                  ))}
+
+                  {/* Si no hay autorizados, mostrar celda por defecto */}
+                  {autorizados.length === 0 && (
+                     <Cell span={4} bold fontSize={8} border={{ all: R }}>
+                        AUTORIZÓ (22)
+                     </Cell>
+                  )}
                </Row>
+
+               {/* Fila de nombres - CORREGIDO: usar fullName en lugar de name */}
                <Row height={46}>
                   <Cell span={6} border={{ left: R, right: R }}>
                      {procedureData?.items[0]?.user_created || ""}
@@ -221,10 +243,23 @@ const ExcelPageProcedure = ({ procedureData, open, setOpen }: TablePageProceudre
                      {""}
                   </Cell>
                   <Empty span={2} />
-                  <Cell span={4} border={{ left: R, right: R }}>
-                     {""}
-                  </Cell>
+
+                  {/* Nombres de cada autorizado - USAR fullName */}
+                  {autorizados.map((autorizado) => (
+                     <Cell key={`name-${autorizado.id}`} span={4} border={{ left: R, right: R }}>
+                        {autorizado.fullName || autorizado.name || ""}
+                     </Cell>
+                  ))}
+
+                  {/* Si no hay autorizados, mostrar celda vacía */}
+                  {autorizados.length === 0 && (
+                     <Cell span={4} border={{ left: R, right: R }}>
+                        {""}
+                     </Cell>
+                  )}
                </Row>
+
+               {/* Fila de etiquetas: NOMBRE Y FIRMA */}
                <Row height={26}>
                   <Cell span={6} fontSize={8} border={{ all: R }} wrap>
                      NOMBRE Y FIRMA
@@ -234,14 +269,28 @@ const ExcelPageProcedure = ({ procedureData, open, setOpen }: TablePageProceudre
                      {"NOMBRE Y FIRMA\nRESPONSABLE DE ARCHIVO DE TRÁMITE"}
                   </Cell>
                   <Empty span={2} />
-                  <Cell span={4} fontSize={8} border={{ all: R }} wrap>
-                     {"NOMBRE Y FIRMA\nTITULAR DE LA UNIDAD ADMINISTRATIVA"}
-                  </Cell>
+
+                  {/* Etiquetas para cada autorizado */}
+                  {autorizados.map((autorizado) => (
+                     <Cell key={`label-${autorizado.id}`} span={4} fontSize={8} border={{ all: R }} wrap>
+                        {"NOMBRE Y FIRMA\nTITULAR DE LA UNIDAD ADMINISTRATIVA"}
+                     </Cell>
+                  ))}
+
+                  {/* Si no hay autorizados, mostrar celda por defecto */}
+                  {autorizados.length === 0 && (
+                     <Cell span={4} fontSize={8} border={{ all: R }} wrap>
+                        {"NOMBRE Y FIRMA\nTITULAR DE LA UNIDAD ADMINISTRATIVA"}
+                     </Cell>
+                  )}
                </Row>
+
                <Spacer height={10} />
                <Row height={20}>
                   <Empty span={14} />
-                  <Cell span={6} bold fontSize={8} border={{ all: R }}>{`FECHA DE ENTREGA: ${FECHA_ENTREGA}  (23)`}</Cell>
+                  <Cell span={6} bold fontSize={8} border={{ all: R }}>
+                     {`FECHA DE ENTREGA: ${FECHA_ENTREGA}  (23)`}
+                  </Cell>
                </Row>
                <Spacer height={6} />
             </Sheet>
@@ -249,4 +298,5 @@ const ExcelPageProcedure = ({ procedureData, open, setOpen }: TablePageProceudre
       </CustomModal>
    );
 };
+
 export default ExcelPageProcedure;

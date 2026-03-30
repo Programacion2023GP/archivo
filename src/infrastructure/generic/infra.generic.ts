@@ -7,8 +7,10 @@ export class GenericApi<T extends object> implements GenericRepository<T> {
    async getAll(prefix: string): Promise<Result<T[]>> {
       try {
          const response = await GetAxios(`${import.meta.env.VITE_API_URL}/${prefix}/index`);
+
          return { ok: true, data: response?.data, message: response.message };
       } catch (error: any) {
+         throw error;
          return { ok: false, error: new Error(String(error)), message: String(error) };
       }
    }

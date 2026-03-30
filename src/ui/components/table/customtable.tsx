@@ -26,7 +26,8 @@ import {
    FiGrid,
    FiSun,
    FiMoon,
-   FiLayout
+   FiLayout,
+   FiCheckSquare // ← nuevo ícono para "seleccionar todo"
 } from "react-icons/fi";
 import { RiFileExcelFill, RiFileTextLine } from "react-icons/ri";
 
@@ -83,6 +84,14 @@ export interface CustomTableHandle<T extends object = any> {
    clearGlobalFilter: () => void;
    /** Limpia todas las filas seleccionadas (checkboxes a 0) */
    clearSelection: () => void;
+   /**
+    * Selecciona TODAS las filas del dataset completo (no solo las visibles/paginadas).
+    * Incluye filas ocultas por paginación pero respeta filtros activos si
+    * `onlyFiltered` es true (por defecto selecciona el dataset completo sin filtros).
+    */
+   selectAllRows: (onlyFiltered?: boolean) => void;
+   /** Deselecciona todas las filas */
+   deselectAllRows: () => void;
    /** Devuelve las filas actualmente seleccionadas */
    getSelectedRows: () => T[];
    /** Devuelve las filas filtradas/ordenadas actualmente visibles */
@@ -144,8 +153,20 @@ export interface PropsTable<T extends object> {
    enableDensityControl?: boolean;
    enableInlineEdit?: boolean;
    enableRowPinning?: boolean;
+   /**
+    * Muestra un botón en la toolbar para seleccionar/deseleccionar
+    * TODAS las filas del dataset de golpe (ignora paginación).
+    * Solo funciona si enableRowSelection también es true.
+    */
+   enableSelectAllRows?: boolean;
    onRowSelect?: (rows: T[]) => void;
+   /**
+    * Callback que se dispara cuando se seleccionan o deseleccionan todas las filas
+    * mediante el botón "Seleccionar todo" (ya sea por prop o por ref).
+    */
+   onSelectAllRows?: (allSelected: boolean, rows: T[]) => void;
    onCellEdit?: (row: T, field: keyof T, value: any) => void;
+   enableGroupSelection_?: boolean;
    defaultTheme?: Theme;
    defaultDensity?: DensityMode;
    storageKey?: string;
@@ -188,7 +209,6 @@ const makeTokens = (theme: Theme) => ({
 const DateFilterInput = ({ field, value, setColFilter, C }) => {
    const inputRef = useRef<HTMLInputElement>(null);
 
-   // Resetea el DOM solo cuando se limpia el filtro externamente
    useEffect(() => {
       if (value === "" && inputRef.current) {
          inputRef.current.value = "";
@@ -204,9 +224,7 @@ const DateFilterInput = ({ field, value, setColFilter, C }) => {
          ref={inputRef}
          type="date"
          defaultValue={value}
-         // onBlur: filtra solo cuando el usuario sale del input (confirmó la fecha)
          onBlur={(e) => commit(e.target.value)}
-         // Enter: confirma inmediatamente
          onKeyDown={(e) => {
             if (e.key === "Enter") {
                commit((e.target as HTMLInputElement).value);
@@ -321,7 +339,10 @@ const CustomTableInner = <T extends object>(
       enableDensityControl = true,
       enableInlineEdit = false,
       enableRowPinning = false,
+      // ── NUEVAS PROPS ──
+      enableSelectAllRows = false,
       onRowSelect,
+      onSelectAllRows,
       onCellEdit,
       enableGroupSelection = false,
       defaultTheme = "light",
@@ -361,8 +382,9 @@ const CustomTableInner = <T extends object>(
    const [showStats, setShowStats] = useState(false);
    const [flashRow, setFlashRow] = useState<string | null>(null);
    const [resizingCol, setResizingCol] = useState<string | null>(null);
-   // ── selectAll se resetea automáticamente cuando selectedRows se vacía ──
    const [selectAll, setSelectAll] = useState(false);
+   // ── NUEVO: indica si TODOS los datos del dataset están seleccionados ──
+   const [allDataSelected, setAllDataSelected] = useState(false);
    const [showGroupPanel, setShowGroupPanel] = useState(false);
    const [rowExpanded, setRowExpanded] = useState<Set<string>>(new Set());
 
@@ -379,14 +401,13 @@ const CustomTableInner = <T extends object>(
    const exportMenuRef = useRef<HTMLDivElement>(null);
    const filterLibraryRef = useRef<HTMLDivElement>(null);
 
-   // Densidad
    const dp = {
       comfortable: { cell: "13px 16px", header: "14px 16px 0", filterMargin: "8px 10px 10px" },
       compact: { cell: "7px 12px", header: "10px 12px 0", filterMargin: "5px 8px 7px" },
       spacious: { cell: "18px 20px", header: "18px 20px 0", filterMargin: "10px 12px 12px" }
    }[density];
 
-   // ========== FILTRADO DE COLUMNAS ==========
+   // ========== COLUMNAS VISIBLES ==========
    const allVisibleColumns = useMemo(() => {
       return columns.filter((col) => {
          if (hiddenColumns.has(String(col.field))) return false;
@@ -398,7 +419,7 @@ const CustomTableInner = <T extends object>(
    const normalColumns = useMemo(() => allVisibleColumns.filter((col) => col.visibility !== "expanded"), [allVisibleColumns]);
    const expandedColumns = useMemo(() => allVisibleColumns.filter((col) => col.visibility === "expanded"), [allVisibleColumns]);
 
-   // ========== FILTRADO DE DATOS ==========
+   // ========== FILTRADO ==========
    const filteredData = useMemo(() => {
       if (!globalFilter && Object.keys(columnFilters).length === 0) return safeData;
       return safeData.filter((row) => {
@@ -528,13 +549,13 @@ const CustomTableInner = <T extends object>(
    const startIndex = (currentPage - 1) * rowsPerPage;
    const currentRows = flatData.slice(startIndex, startIndex + rowsPerPage);
 
-   const selectedData = useMemo(() => flatData.filter((row, i) => selectedRows.has(getRowId(row, 0, i))), [flatData, selectedRows]);
+   const selectedData = useMemo(() => safeData.filter((row, i) => selectedRows.has(getRowId(row as any, 0, i))), [safeData, selectedRows]);
 
    // ========== RESET HELPERS ==========
-   /** Vacía selección y sincroniza el checkbox "seleccionar todo" */
    const resetSelection = () => {
       setSelectedRows(new Set());
       setSelectAll(false);
+      setAllDataSelected(false);
    };
 
    // ── Cuando cambia el dataset, resetear selección ──
@@ -547,12 +568,19 @@ const CustomTableInner = <T extends object>(
    useEffect(() => {
       if (selectedRows.size === 0) {
          setSelectAll(false);
-      } else if (currentRows.length > 0 && currentRows.every((r, i) => selectedRows.has(getRowId(r, 0, i)))) {
+         setAllDataSelected(false);
+      } else if (currentRows.length > 0 && currentRows.every((r, i) => selectedRows.has(getRowId(r as any, 0, startIndex + i)))) {
          setSelectAll(true);
       } else {
          setSelectAll(false);
       }
-   }, [selectedRows, currentRows]);
+      // ── ¿están TODOS los datos del dataset seleccionados? ──
+      if (safeData.length > 0 && safeData.every((r, i) => selectedRows.has(getRowId(r as any, 0, i)))) {
+         setAllDataSelected(true);
+      } else {
+         setAllDataSelected(false);
+      }
+   }, [selectedRows, currentRows, safeData]);
 
    // ========== EFECTOS ==========
    useEffect(() => {
@@ -649,7 +677,7 @@ const CustomTableInner = <T extends object>(
 
    useEffect(() => {
       if (onRowSelect) {
-         const selRows = safeData.filter((_, i) => selectedRows.has(getRowId(_, 0, i)));
+         const selRows = safeData.filter((_, i) => selectedRows.has(getRowId(_ as any, 0, i)));
          onRowSelect(selRows);
       }
    }, [selectedRows]);
@@ -695,7 +723,6 @@ const CustomTableInner = <T extends object>(
       setColumnFilters({});
       setCurrentPage(1);
       setSortConfig({ field: null, direction: null });
-      // ── También resetea checkboxes al limpiar todos los filtros ──
       resetSelection();
    };
 
@@ -720,22 +747,42 @@ const CustomTableInner = <T extends object>(
          return n;
       });
 
+   /** Selecciona/deselecciona solo las filas de la página actual */
    const handleSelectAll = () => {
       if (selectAll) {
-         // Deseleccionar solo los de la página actual
          setSelectedRows((prev) => {
             const n = new Set(prev);
-            currentRows.forEach((r, i) => n.delete(getRowId(r, 0, i)));
+            currentRows.forEach((r, i) => n.delete(getRowId(r as any, 0, startIndex + i)));
             return n;
          });
          setSelectAll(false);
       } else {
          setSelectedRows((prev) => {
             const n = new Set(prev);
-            currentRows.forEach((r, i) => n.add(getRowId(r, 0, i)));
+            currentRows.forEach((r, i) => n.add(getRowId(r as any, 0, startIndex + i)));
             return n;
          });
          setSelectAll(true);
+      }
+   };
+
+   /**
+    * Selecciona o deselecciona TODAS las filas del dataset completo.
+    * onlyFiltered=true → solo las que pasan el filtro activo (flatData)
+    * onlyFiltered=false (default) → absolutamente todas (safeData)
+    */
+   const handleSelectAllRows = (onlyFiltered = false) => {
+      const source = onlyFiltered ? flatData : safeData;
+      if (allDataSelected) {
+         // Deseleccionar todo
+         resetSelection();
+         onSelectAllRows?.(false, []);
+      } else {
+         const ids = new Set(source.map((r, i) => getRowId(r as any, 0, i)));
+         setSelectedRows(ids);
+         setSelectAll(true);
+         setAllDataSelected(true);
+         onSelectAllRows?.(true, source);
       }
    };
 
@@ -773,7 +820,6 @@ const CustomTableInner = <T extends object>(
       setColumnFilters(f.columnFilters);
       setSortConfig({ field: f.sortConfig.field as keyof T | null, direction: f.sortConfig.direction });
       setCurrentPage(1);
-      // ── Resetear selección al aplicar un filtro guardado ──
       resetSelection();
       setShowFilterLibrary(false);
    };
@@ -916,6 +962,23 @@ const CustomTableInner = <T extends object>(
             setCurrentPage(1);
          },
          clearSelection: () => resetSelection(),
+
+         // ── NUEVO: selectAllRows ──
+         selectAllRows: (onlyFiltered = false) => {
+            const source = onlyFiltered ? flatData : safeData;
+            const ids = new Set(source.map((r, i) => getRowId(r as any, 0, i)));
+            setSelectedRows(ids);
+            setSelectAll(true);
+            setAllDataSelected(true);
+            onSelectAllRows?.(true, source);
+         },
+
+         // ── NUEVO: deselectAllRows ──
+         deselectAllRows: () => {
+            resetSelection();
+            onSelectAllRows?.(false, []);
+         },
+
          getSelectedRows: () => selectedData,
          getFilteredRows: () => sortedData,
          setTheme: (t: Theme) => setTheme(t),
@@ -930,7 +993,7 @@ const CustomTableInner = <T extends object>(
          toggleFullscreen: () => setIsFullscreen((f) => !f),
          refresh: () => setColumns((c) => [...c])
       }),
-      [selectedData, sortedData, totalPages]
+      [selectedData, sortedData, totalPages, safeData, flatData, onSelectAllRows]
    );
 
    // ========== RENDER FILTER INPUT ==========
@@ -1065,9 +1128,10 @@ const CustomTableInner = <T extends object>(
    };
 
    // ========== RENDER ROWS ==========
-   const renderRows = (rows: T[], level = 0): React.ReactNode[] =>
+   const renderRows = (rows: T[], level = 0, indexOffset = 0): React.ReactNode[] =>
       rows.flatMap((row, idx) => {
-         const rowId = getRowId(row, level, idx);
+         const globalIdx = indexOffset + idx;
+         const rowId = getRowId(row as any, level, globalIdx);
          const hasChildren = childrenField && Array.isArray(row[childrenField]) && (row[childrenField] as T[]).length > 0;
          const isExpanded = hasChildren ? expandedNodes.has(rowId) : false;
          const isSelected = selectedRows.has(rowId);
@@ -1255,7 +1319,7 @@ const CustomTableInner = <T extends object>(
                   </tr>
                )}
 
-               {isExpanded && renderRows(row[childrenField] as T[], level + 1)}
+               {isExpanded && renderRows(row[childrenField] as T[], level + 1, globalIdx * 1000)}
             </React.Fragment>
          );
       });
@@ -1434,7 +1498,7 @@ const CustomTableInner = <T extends object>(
                <tbody>
                   {enableRowPinning && pinnedRowsData.length > 0 && (
                      <>
-                        {renderRows(pinnedRowsData)}
+                        {renderRows(pinnedRowsData, 0, 0)}
                         <tr>
                            <td
                               colSpan={totalColumns}
@@ -1457,7 +1521,7 @@ const CustomTableInner = <T extends object>(
                   {groupedData
                      ? groupedData.map(([groupKey, groupRows]) => {
                           const gPaged = groupRows.slice(0, rowsPerPage);
-                          const groupRowIds = groupRows.map((r, i) => getRowId(r, 0, i));
+                          const groupRowIds = groupRows.map((r, i) => getRowId(r as any, 0, i));
                           const allGroupSelected = groupRowIds.every((id) => selectedRows.has(id));
                           const someGroupSelected = groupRowIds.some((id) => selectedRows.has(id));
 
@@ -1530,11 +1594,11 @@ const CustomTableInner = <T extends object>(
                                       </div>
                                    </td>
                                 </tr>
-                                {renderRows(gPaged)}
+                                {renderRows(gPaged, 0, 0)}
                              </React.Fragment>
                           );
                        })
-                     : renderRows(currentRows)}
+                     : renderRows(currentRows, 0, startIndex)}
                </tbody>
                {hasAgg && enableAggregations && (
                   <tfoot>
@@ -1583,7 +1647,7 @@ const CustomTableInner = <T extends object>(
    const renderCards = () => (
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(290px, 1fr))", gap: 16, padding: 24, background: C.pageBg }}>
          {currentRows.map((row, idx) => {
-            const rowId = getRowId(row, 0, idx);
+            const rowId = getRowId(row as any, 0, startIndex + idx);
             const isSelected = selectedRows.has(rowId);
             return (
                <motion.div
@@ -1701,7 +1765,7 @@ const CustomTableInner = <T extends object>(
    const renderCompact = () => (
       <div style={{ padding: "8px 16px" }}>
          {currentRows.map((row, idx) => {
-            const rowId = getRowId(row, 0, idx);
+            const rowId = getRowId(row as any, 0, startIndex + idx);
             const isSelected = selectedRows.has(rowId);
             const isHovered = hoveredRow === rowId;
             return (
@@ -2357,6 +2421,35 @@ const CustomTableInner = <T extends object>(
                      </IconBtn>
                   )}
 
+                  {/* ── NUEVO: botón "Seleccionar todo el dataset" ── */}
+                  {enableRowSelection && enableSelectAllRows && (
+                     <motion.button
+                        whileHover={{ scale: 1.02 }}
+                        whileTap={{ scale: 0.97 }}
+                        onClick={() => handleSelectAllRows(false)}
+                        title={allDataSelected ? "Deseleccionar todos" : `Seleccionar los ${safeData.length} registros`}
+                        style={{
+                           display: "flex",
+                           alignItems: "center",
+                           gap: 5,
+                           padding: "7px 12px",
+                           borderRadius: C.r6,
+                           background: allDataSelected ? C.rubyLight : C.surface,
+                           border: `1px solid ${allDataSelected ? C.ruby : C.border}`,
+                           color: allDataSelected ? C.ruby : C.text2,
+                           fontSize: 11,
+                           fontWeight: 700,
+                           cursor: "pointer",
+                           fontFamily: "inherit",
+                           whiteSpace: "nowrap",
+                           transition: "all 0.15s"
+                        }}
+                     >
+                        <FiCheckSquare size={13} />
+                        {allDataSelected ? "Desel. todo" : `Sel. todo (${safeData.length})`}
+                     </motion.button>
+                  )}
+
                   {enableExportOptions && (
                      <motion.button
                         whileHover={{ scale: 1.02 }}
@@ -2434,7 +2527,8 @@ const CustomTableInner = <T extends object>(
                         gap: 4
                      }}
                   >
-                     <FiCheck size={10} /> {totalSelected} seleccionados
+                     <FiCheck size={10} />
+                     {allDataSelected ? `Todos (${totalSelected}) seleccionados` : `${totalSelected} seleccionado${totalSelected !== 1 ? "s" : ""}`}
                      <button
                         onClick={() => resetSelection()}
                         style={{ background: "none", border: "none", cursor: "pointer", padding: 0, color: C.ruby, display: "flex", marginLeft: 2 }}
@@ -2649,7 +2743,6 @@ const CustomTableInner = <T extends object>(
 };
 
 // ==================== forwardRef wrapper con genérico ====================
-// Necesario porque forwardRef no soporta genéricos directamente en TSX
 const CustomTable = forwardRef(CustomTableInner) as <T extends object>(props: PropsTable<T> & { ref?: React.Ref<CustomTableHandle<T>> }) => React.ReactElement;
 
 export default CustomTable;

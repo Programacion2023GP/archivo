@@ -12,7 +12,7 @@ import { VscDiffAdded } from "react-icons/vsc";
 import CustomTable, { Column, CustomTableHandle } from "../../../components/table/customtable";
 import { HiX } from "react-icons/hi";
 import { DateFormat, formatDatetime } from "../../../../utils/formats";
-import { Dispatch, RefObject, SetStateAction, useState } from "react";
+import { Dispatch, RefObject, SetStateAction, useEffect, useState } from "react";
 import { TbSelect } from "react-icons/tb";
 import { FormTableHandle } from "../../../formik/FormikInputs/formiktable";
 import { IoMdCheckmark } from "react-icons/io";
@@ -26,14 +26,17 @@ import { accessCreateProcedure } from "../utils/utils.pageprocedure";
 import { MdSend } from "react-icons/md";
 import { BsCheck2Circle } from "react-icons/bs";
 import CustomTreeView from "../../../components/treeview/treeview";
+import { ListAutorized } from "../../../../domain/models/listautorized/listautorized";
 
 type TablePageProceudreProps = {
+   listAutorized: GenericDataReturn<ListAutorized>;
    procedureData: GenericDataReturn<Procedure>;
    procedureCreatedAt: GenericDataReturn<ProceduresCreatedAt>;
    setEditableRows: Dispatch<SetStateAction<Procedure[]>>;
    editableRows: Procedure[];
    setOpenExcel: Dispatch<SetStateAction<boolean>>;
-
+   deptoDetails: { open: boolean; name: string };
+   setDeptoDetails: Dispatch<SetStateAction<{ open: boolean; name: string }>>;
    tableRef: RefObject<CustomTableHandle<Procedure>>;
    setModeTable: Dispatch<SetStateAction<"create" | "edit" | "view" | "delete" | "editdelete">>;
 };
@@ -44,7 +47,7 @@ const TablePageProcedureDetails = ({
    setEditableRows,
    setModeTable,
    tableRef
-}: Omit<TablePageProceudreProps, "setOpenExcel">) => {
+}: Omit<TablePageProceudreProps, "setOpenExcel" | "setDeptoDetails" | "listAutorized" | "deptoDetails">) => {
    const [openCheckbox, setOpenCheckbox] = useState<boolean>();
    const selectedItems = (newRows: Procedure[]) => {
       setEditableRows((prev) => {
@@ -88,7 +91,9 @@ const TablePageProcedureDetails = ({
    const currentStatus = procedureData?.items?.[0]?.status?.toString();
    const isValidStatus = !["enviado", "autorizado", "finalizado"].includes(currentStatus);
    const showButtons = isAdmin || isValidStatus;
-
+   useEffect(() => {
+      tableRef.current.selectAllRows();
+   }, []);
    return (
       <>
          <CustomTable
@@ -203,20 +208,10 @@ const TablePageProcedureDetails = ({
             data={procedureData.items}
             onRowSelect={selectedItems}
             enableSavedFilters
-            enableRowSelection={showButtons}
             storageKey="procedure_table"
             columns={[
                { field: "boxes", headerName: "Cajas" },
 
-               {
-                  field: "status",
-                  headerName: "Status",
-                  renderField: (v) => (
-                     <CustomBadge variant="outline" color="secondary">
-                        {v.toString().toUpperCase()}
-                     </CustomBadge>
-                  )
-               },
                // { field: "departament_id", headerName: "Departamento" },
                // { field: "user_id", headerName: "Usuario" },
                { field: "retention_period_current", headerName: "At" },
@@ -303,8 +298,11 @@ const TablePageProcedureDetails = ({
       </>
    );
 };
-const TablePageProceudre = ({ procedureData, setEditableRows, editableRows, tableRef, setModeTable, procedureCreatedAt, setOpenExcel }: TablePageProceudreProps) => {
-   const [deptoDetails, setDeptoDetails] = useState<{ open: boolean; name: string }>({ name: "", open: false });
+const findAsignatureUser = (authorization_chain:AutorizationChain[]):number|null => {
+   const item = authorization_chain.find((it) => it.user_id && !it.signedBy);
+   return item.user_id
+};
+const TablePageProceudre = ({ procedureData,deptoDetails,setDeptoDetails, setEditableRows, editableRows, tableRef, setModeTable, procedureCreatedAt, setOpenExcel,listAutorized }: TablePageProceudreProps) => {
    return (
       <>
          <CustomModal
@@ -407,30 +405,21 @@ const TablePageProceudre = ({ procedureData, setEditableRows, editableRows, tabl
                      return `${date[0]} - ${formatDatetime(date[1], true, DateFormat.DDDD_DD_DE_MMMM_DE_YYYY)}`;
                   }
                },
-               {
-                  field: "status",
-                  headerName: "Status",
-                  renderField: (v, row) => (
-                     <CustomBadge variant="outline" color={"info"}>
-                        {String(v).toUpperCase()}
-                     </CustomBadge>
-                  )
-               },
+
                {
                   field: "authorization_chain",
                   headerName: "Progreso",
                   renderField: (v: any, row) => (
                      <CustomTreeView
                         data={v}
-                        nameField="name" // ← aquí pones el campo que quieras: "name", "department_name", etc.
+                        nameField="name"
                         groupField="group"
                         levelField="level"
                         directorField="director_name"
                         showGroup
                         showLevel
                         showDirector
-                        
-                        onNodeClick={(node, idx) => console.log(node, idx)}
+                        currentStatus={row.status} // ← el status global de la fila
                      />
                   )
                },
@@ -454,6 +443,8 @@ const TablePageProceudre = ({ procedureData, setEditableRows, editableRows, tabl
                                  .finally(() => {
                                     procedureData.setConstant("startDate", row.order_date);
                                     procedureData.setConstant("departament_id", row.departament_id);
+                                    procedureCreatedAt.setConstant("user_id", findAsignatureUser(row.authorization_chain));
+
                                     if (row.status == "rechazado") {
                                        procedureData.setConstant("status", "rechazado");
                                     }
@@ -483,7 +474,17 @@ const TablePageProceudre = ({ procedureData, setEditableRows, editableRows, tabl
                                     url: `procedure/detailsprocedure/${row.order_date}/${row.departament_id}`
                                  })
                                  .finally(() => {
-                                    setOpenExcel(true);
+                                     listAutorized.request({
+                                        method: "POST",
+                                        url: "signature/listautorized",
+                                        data: {
+                                           procedure_id: row.id
+                                        },
+                                        getData: true
+                                     }).finally(()=>{
+
+                                        setOpenExcel(true);
+                                     });
                                  });
                            }}
                         >

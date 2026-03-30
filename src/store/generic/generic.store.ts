@@ -161,9 +161,8 @@ export const useGenericStore = <T extends { id?: number }>(initialValues: T) => 
             }
          } catch (error) {
             const msg = error instanceof Error ? error.message : "Error desconocido";
-
-            set({ error: msg });
-            showToast(msg, "error");
+            set({ error: msg,items:[] });
+            // showToast(msg, "error");
 
             return []; // evitar undefined
          } finally {
