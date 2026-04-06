@@ -15,7 +15,7 @@ import { DateFormat, formatDatetime } from "../../../../utils/formats";
 import { Dispatch, RefObject, SetStateAction, useEffect, useState } from "react";
 import { TbSelect } from "react-icons/tb";
 import { FormTableHandle } from "../../../formik/FormikInputs/formiktable";
-import { IoMdCheckmark } from "react-icons/io";
+import { IoIosWarning, IoMdCheckmark } from "react-icons/io";
 import { IoMdClose } from "react-icons/io";
 import CustomBadge from "../../../components/badge/custombadge";
 import { AutorizationChain, ProceduresCreatedAt } from "../../../../domain/models/procedurecreatedat/procedure_created_at";
@@ -27,6 +27,7 @@ import { MdSend } from "react-icons/md";
 import { BsCheck2Circle } from "react-icons/bs";
 import CustomTreeView from "../../../components/treeview/treeview";
 import { ListAutorized } from "../../../../domain/models/listautorized/listautorized";
+
 
 type TablePageProceudreProps = {
    listAutorized: GenericDataReturn<ListAutorized>;
@@ -73,6 +74,7 @@ const TablePageProcedureDetails = ({
    };
    const handleEdit = () => {
       if (handleError()) return;
+      console.log("aqui m", procedureData.constants);
       if (procedureData.constants.status == "rechazado") {
          setModeTable("editdelete");
       } else {
@@ -89,16 +91,26 @@ const TablePageProcedureDetails = ({
    };
    const isAdmin = localStorage.getItem("role")?.toUpperCase() === "ADMINISTRADOR";
    const currentStatus = procedureData?.items?.[0]?.status?.toString();
-   const isValidStatus = !["enviado", "autorizado", "finalizado"].includes(currentStatus);
+   const isValidStatus = !["ENVIADO", "REVISADO", "FINALIZADO"].includes(currentStatus);
    const showButtons = isAdmin || isValidStatus;
    useEffect(() => {
       tableRef.current.selectAllRows();
-   }, []);
+   }, [handleDelete, handleEdit]);
+   const signaturePermissionUser = (): boolean => {
+      const authId = localStorage.getItem("auth_id");
+      const userName = localStorage.getItem("name");
+
+      if (Number(procedureCreatedAt.constants.user_id) === Number(authId)) {
+      return true
+      }
+
+      return false;
+   };
    return (
       <>
          <CustomTable
             ref={tableRef}
-            headerActions={() => (
+            headerActions={(data) => (
                <>
                   {/* {!openCheckbox && (
                      <PermissionRoute requiredPermission={"tramite_crear"}>
@@ -141,22 +153,45 @@ const TablePageProcedureDetails = ({
                         return (
                            showButtons && (
                               <>
-                                 <PermissionRoute requiredPermission={"tramite_actualizar"}>
+                                 <PermissionRoute requiredPermission={["tramite_actualizar"]}>
                                     <Tooltip content="Editar">
                                        <CustomButton
                                           size="lg"
                                           color="yellow"
                                           variant="solid"
                                           onClick={() => {
-                                             procedureData.setConstant("status", "rechazado");
-
-                                             handleEdit();
+                                             if (data.length == 0) {
+                                                return;
+                                             }
+                                             const item = procedureCreatedAt?.items?.[0];
+                                             console.log(procedureCreatedAt);
+                                             if (item.error) {
+                                                setModeTable("editdelete");
+                                             } else {
+                                                setModeTable("edit");
+                                             }
+                                             procedureData.setOpen();
                                           }}
                                        >
                                           <FaEdit />
                                        </CustomButton>
                                     </Tooltip>
                                  </PermissionRoute>
+
+                                 {signaturePermissionUser() && (
+                                    <CustomButton
+                                       size="lg"
+                                       color="pink"
+                                       variant="solid"
+                                       onClick={() => {
+                                          setModeTable("view");
+                                          procedureData.setOpen()
+                                       }}
+                                    >
+                                       <BsCheck2Circle />{" "}
+                                    </CustomButton>
+                                 )}
+
                                  <PermissionRoute requiredPermission={"tramite_actualizar"}>
                                     {currentStatus == "captura" && (
                                        <Tooltip content="Enviar Todos">
@@ -190,7 +225,7 @@ const TablePageProcedureDetails = ({
                                        </Tooltip>
                                     )}
                                  </PermissionRoute>
-                                 <PermissionRoute requiredPermission={"tramite_eliminar"}>
+                                 <PermissionRoute requiredPermission={["revisar"]}>
                                     <Tooltip content="Revision">
                                        <CustomButton size="lg" color="pink" variant="solid" onClick={handleDelete}>
                                           <BsCheck2Circle />
@@ -298,11 +333,25 @@ const TablePageProcedureDetails = ({
       </>
    );
 };
-const findAsignatureUser = (authorization_chain:AutorizationChain[]):number|null => {
+const findAsignatureUser = (authorization_chain: AutorizationChain[]): number | null => {
    const item = authorization_chain.find((it) => it.user_id && !it.signedBy);
-   return item.user_id
+   if (!item) {
+      return 0;
+   }
+   return item.user_id;
 };
-const TablePageProceudre = ({ procedureData,deptoDetails,setDeptoDetails, setEditableRows, editableRows, tableRef, setModeTable, procedureCreatedAt, setOpenExcel,listAutorized }: TablePageProceudreProps) => {
+const TablePageProceudre = ({
+   procedureData,
+   deptoDetails,
+   setDeptoDetails,
+   setEditableRows,
+   editableRows,
+   tableRef,
+   setModeTable,
+   procedureCreatedAt,
+   setOpenExcel,
+   listAutorized
+}: TablePageProceudreProps) => {
    return (
       <>
          <CustomModal
@@ -409,91 +458,110 @@ const TablePageProceudre = ({ procedureData,deptoDetails,setDeptoDetails, setEdi
                {
                   field: "authorization_chain",
                   headerName: "Progreso",
-                  renderField: (v: any, row) => (
-                     <CustomTreeView
-                        data={v}
-                        nameField="name"
-                        groupField="group"
-                        levelField="level"
-                        directorField="director_name"
-                        showGroup
-                        showLevel
-                        showDirector
-                        currentStatus={row.status} // ← el status global de la fila
-                     />
-                  )
+                  renderField: (v: any, row) => {
+                     if (row.error) {
+                        return (
+                           <CustomBadge variant="solid" icon={<IoIosWarning />} color="warning" size="lg">
+                              Requiere corrección
+                           </CustomBadge>
+                        );
+                     } else {
+                        return (
+                           <CustomTreeView
+                              data={v}
+                              nameField="name"
+                              groupField="group"
+                              levelField="level"
+                              directorField="director_name"
+                              showGroup
+                              showLevel
+                              showDirector
+                              currentStatus={row.status} // ← el status global de la fila
+                           />
+                        );
+                     }
+                  }
                },
                { field: "department_name", headerName: "Departamento" },
                { field: "user_fullname", headerName: "Capturado por" }
             ]}
-            actions={(row) => (
-               <>
-                  <PermissionRoute requiredPermission={"tramite_ver"}>
-                     <Tooltip content="Ver detalles">
-                        <CustomButton
-                           size="sm"
-                           variant="soft"
-                           color="green"
-                           onClick={() => {
-                              procedureData
-                                 .request({
-                                    method: "GET",
-                                    url: `procedure/detailsprocedure/${row.order_date}/${row.departament_id}`
-                                 })
-                                 .finally(() => {
-                                    procedureData.setConstant("startDate", row.order_date);
-                                    procedureData.setConstant("departament_id", row.departament_id);
-                                    procedureCreatedAt.setConstant("user_id", findAsignatureUser(row.authorization_chain));
+            actions={(row) => {
+               const stored = localStorage.getItem("permisos");
+               const parsed = stored ? JSON.parse(stored) : [];
+               // if (parsed.includes("revisar")) {
+               //    console.log("aqui")
+               //    return;
+               // }
+               return (
+                  <>
+                     <PermissionRoute requiredPermission={"tramite_ver"}>
+                        <Tooltip content="Ver detalles">
+                           <CustomButton
+                              size="sm"
+                              variant="soft"
+                              color="green"
+                              onClick={() => {
+                                 procedureData
+                                    .request({
+                                       method: "GET",
+                                       url: `procedure/detailsprocedure/${row.order_date}/${row.departament_id}`
+                                    })
+                                    .finally(() => {
+                                       procedureData.setConstant("startDate", row.order_date);
+                                       procedureData.setConstant("departament_id", row.departament_id);
+                                       procedureCreatedAt.setConstant("user_id", findAsignatureUser(row.authorization_chain));
 
-                                    if (row.status == "rechazado") {
-                                       procedureData.setConstant("status", "rechazado");
-                                    }
-                                    const date = String(row.full_group).split(".");
-                                    setDeptoDetails({
-                                       name: `${date[0]} - ${formatDatetime(date[1], true, DateFormat.DDDD_DD_DE_MMMM_DE_YYYY)}`,
-                                       open: true
+                                       if (row.status == "rechazado") {
+                                          procedureData.setConstant("status", "rechazado");
+                                       }
+                                       const date = String(row.full_group).split(".");
+                                       setDeptoDetails({
+                                          name: `${date[0]} - ${formatDatetime(date[1], true, DateFormat.DDDD_DD_DE_MMMM_DE_YYYY)}`,
+                                          open: true
+                                       });
                                     });
-                                 });
-                           }}
-                        >
-                           <FaEye />
-                        </CustomButton>
-                     </Tooltip>
-                  </PermissionRoute>
+                              }}
+                           >
+                              <FaEye />
+                           </CustomButton>
+                        </Tooltip>
+                     </PermissionRoute>
 
-                  <PermissionRoute requiredPermission={"tramite_ver"}>
-                     <Tooltip content="Excel">
-                        <CustomButton
-                           size="sm"
-                           variant="soft"
-                           color="green"
-                           onClick={() => {
-                              procedureData
-                                 .request({
-                                    method: "GET",
-                                    url: `procedure/detailsprocedure/${row.order_date}/${row.departament_id}`
-                                 })
-                                 .finally(() => {
-                                     listAutorized.request({
-                                        method: "POST",
-                                        url: "signature/listautorized",
-                                        data: {
-                                           procedure_id: row.id
-                                        },
-                                        getData: true
-                                     }).finally(()=>{
-
-                                        setOpenExcel(true);
-                                     });
-                                 });
-                           }}
-                        >
-                           <RiFileExcel2Fill />
-                        </CustomButton>
-                     </Tooltip>
-                  </PermissionRoute>
-               </>
-            )}
+                     <PermissionRoute requiredPermission={"tramite_ver"}>
+                        <Tooltip content="Excel">
+                           <CustomButton
+                              size="sm"
+                              variant="soft"
+                              color="green"
+                              onClick={() => {
+                                 procedureData
+                                    .request({
+                                       method: "GET",
+                                       url: `procedure/detailsprocedure/${row.order_date}/${row.departament_id}`
+                                    })
+                                    .finally(() => {
+                                       listAutorized
+                                          .request({
+                                             method: "POST",
+                                             url: "signature/listautorized",
+                                             data: {
+                                                procedure_id: row.id
+                                             },
+                                             getData: true
+                                          })
+                                          .finally(() => {
+                                             setOpenExcel(true);
+                                          });
+                                    });
+                              }}
+                           >
+                              <RiFileExcel2Fill />
+                           </CustomButton>
+                        </Tooltip>
+                     </PermissionRoute>
+                  </>
+               );
+            }}
          />
       </>
    );

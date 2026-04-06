@@ -10,7 +10,8 @@ export interface Users {
    active: boolean;
    payroll: number;
    permissions: number[];
-   departament?:string;
+   departament?: string;
+   signature?:string
 }     
 export type Result<T> =
   | { ok: true; data: T,message:string }

@@ -1,22 +1,9 @@
 /**
- * react-excel-engine.tsx  — v3 StrictMode-safe
- *
- * FIX REAL: en React StrictMode cada función de render se ejecuta DOS VECES,
- * lo que causaba que _reg() se llamara 2 veces por Cell → filas con doble
- * de celdas → columnas duplicadas en el XLSX.
- *
- * Solución: la recolección de datos ya NO ocurre durante el render.
- * Al hacer clic en "Descargar", se recorre el árbol de React children
- * directamente (React.Children + element.props) para extraer los datos
- * de Sheet → Row → Cell sin ejecutar ningún render adicional.
- *
- * npm install exceljs
+ * react-excel-engine.tsx  — v6 firmas centradas + toolbar normal
  */
 
-import React, { createContext, useContext, useState, useCallback, CSSProperties, ReactNode, ReactElement } from "react";
+import React, { createContext, useState, useCallback, CSSProperties, ReactNode, ReactElement } from "react";
 import ExcelJS from "exceljs";
-
-// ── Tipos públicos ────────────────────────────────────────────
 
 type Align = "left" | "center" | "right";
 type VAlign = "top" | "middle" | "bottom";
@@ -37,6 +24,7 @@ export type BorderProp = BorderWeight | BorderSides;
 export interface CellProps {
    children?: ReactNode;
    value?: string | number | null;
+   image?: string;
    span?: number;
    rowSpan?: number;
    bold?: boolean;
@@ -77,11 +65,7 @@ export interface WorkbookProps {
    zoom?: number;
 }
 
-// ── Contexto solo para preview visual ────────────────────────
-// (no se usa para recolección de datos)
 const SheetCtx = createContext<{ _cols: number } | null>(null);
-
-// ── Utilidades ────────────────────────────────────────────────
 
 function toARGB(hex: string | null | undefined): string | null {
    if (!hex) return null;
@@ -198,10 +182,42 @@ function normBdrEJS(border?: BorderProp | null) {
    return Object.keys(out).length ? out : null;
 }
 
-// ── Extractor de datos desde el árbol React (sin render) ──────
+const normalizeExt = (ext: string): "png" | "jpeg" | "gif" => {
+   const lower = ext.toLowerCase();
+   if (lower === "jpg") return "jpeg";
+   if (lower === "png" || lower === "jpeg" || lower === "gif") return lower as "png" | "jpeg" | "gif";
+   return "jpeg";
+};
+
+async function srcToBase64(src: string): Promise<{ base64: string; ext: "png" | "jpeg" | "gif" } | null> {
+   if (!src) return null;
+   if (src.startsWith("data:image")) {
+      const match = src.match(/^data:image\/(\w+);base64,(.+)$/s);
+      if (!match) return null;
+      return { base64: match[2].replace(/\s/g, ""), ext: normalizeExt(match[1]) };
+   }
+   try {
+      const res = await fetch(src, { credentials: "include", cache: "force-cache" });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const blob = await res.blob();
+      const base64Full = await new Promise<string>((resolve, reject) => {
+         const reader = new FileReader();
+         reader.onload = () => resolve(reader.result as string);
+         reader.onerror = reject;
+         reader.readAsDataURL(blob);
+      });
+      const match = base64Full.match(/^data:image\/(\w+);base64,(.+)$/s);
+      if (!match) return null;
+      return { base64: match[2].replace(/\s/g, ""), ext: normalizeExt(match[1]) };
+   } catch (err) {
+      console.warn("react-excel-engine: no se pudo cargar imagen →", src, err);
+      return null;
+   }
+}
 
 interface CellData {
    value: string | number | null;
+   image?: string;
    span: number;
    rowSpan: number;
    bold: boolean;
@@ -218,7 +234,6 @@ interface CellData {
    type: CellType;
    numFmt: string | null;
 }
-
 interface RowData {
    h: number;
    cells: CellData[];
@@ -226,9 +241,12 @@ interface RowData {
 
 function extractCellData(el: ReactElement<CellProps>): CellData {
    const p = el.props;
-   const rawVal = p.value !== undefined ? p.value : typeof p.children === "string" || typeof p.children === "number" ? p.children : null;
+   const hasImage = p.image && p.image.trim() !== "";
+
+   const rawVal = !hasImage ? (p.value !== undefined ? p.value : typeof p.children === "string" || typeof p.children === "number" ? p.children : null) : null;
    return {
       value: rawVal ?? null,
+      image: p.image,
       span: p.span ?? 1,
       rowSpan: p.rowSpan ?? 1,
       bold: p.bold ?? false,
@@ -251,84 +269,59 @@ function flattenChildren(children: ReactNode): ReactElement[] {
    const result: ReactElement[] = [];
    React.Children.forEach(children, (child) => {
       if (!React.isValidElement(child)) return;
-      if (child.type === React.Fragment) {
-         result.push(...flattenChildren((child.props as { children?: ReactNode }).children));
-      } else {
-         result.push(child);
-      }
+      if (child.type === React.Fragment) result.push(...flattenChildren((child.props as { children?: ReactNode }).children));
+      else result.push(child);
    });
    return result;
 }
 
+const EMPTY_CELL_BASE: Omit<CellData, "span"> = {
+   value: "",
+   image: undefined,
+   rowSpan: 1,
+   bold: false,
+   italic: false,
+   underline: false,
+   fontSize: 9,
+   fontName: "Arial Narrow",
+   color: "#000000",
+   bg: null,
+   align: "center",
+   vAlign: "middle",
+   wrap: false,
+   border: null,
+   type: "text",
+   numFmt: null
+};
+
 function extractSheetRows(sheetChildren: ReactNode, numCols: number): RowData[] {
    const rows: RowData[] = [];
-   const els = flattenChildren(sheetChildren);
-
-   for (const el of els) {
+   for (const el of flattenChildren(sheetChildren)) {
       const type = el.type;
-
       if (type === Row) {
-         const rowProps = el.props as RowProps;
-         const h = rowProps.height ?? 22;
+         const rp = el.props as RowProps;
          const cells: CellData[] = [];
-         const rowEls = flattenChildren(rowProps.children);
-
-         for (const child of rowEls) {
-            if (child.type === Cell || child.type === Empty) {
-               cells.push(extractCellData(child as ReactElement<CellProps>));
-            }
-         }
-         if (cells.length) rows.push({ h, cells });
+         for (const child of flattenChildren(rp.children))
+            if (child.type === Cell || child.type === Empty) cells.push(extractCellData(child as ReactElement<CellProps>));
+         if (cells.length) rows.push({ h: rp.height ?? 22, cells });
       } else if (type === Spacer) {
-         const h = (el.props as SpacerProps).height ?? 8;
-         rows.push({
-            h,
-            cells: [
-               {
-                  value: "",
-                  span: numCols,
-                  rowSpan: 1,
-                  bold: false,
-                  italic: false,
-                  underline: false,
-                  fontSize: 9,
-                  fontName: "Arial Narrow",
-                  color: "#000000",
-                  bg: null,
-                  align: "center",
-                  vAlign: "middle",
-                  wrap: false,
-                  border: null,
-                  type: "text",
-                  numFmt: null
-               }
-            ]
-         });
-      }
-      // TitleRow, MetaRow, HeaderRow, DataRow → se renderizan a Row+Cell,
-      // pero al leer props directamente necesitamos manejarlos:
-      else if (type === TitleRow) {
+         rows.push({ h: (el.props as SpacerProps).height ?? 8, cells: [{ ...EMPTY_CELL_BASE, span: numCols }] });
+      } else if (type === TitleRow) {
          const p = el.props as TitleRowProps;
          rows.push({
             h: p.height ?? 30,
             cells: [
                {
+                  ...EMPTY_CELL_BASE,
                   value: typeof p.children === "string" ? p.children : null,
                   span: p.span,
-                  rowSpan: 1,
                   bold: true,
-                  italic: false,
-                  underline: false,
                   fontSize: p.fontSize ?? 12,
-                  fontName: "Arial Narrow",
                   color: p.color ?? "#fff",
                   bg: p.bg ?? "#1e3a5f",
                   align: "center",
                   vAlign: "middle",
-                  wrap: true,
-                  border: null,
-                  type: "text",
-                  numFmt: null
+                  wrap: true
                }
             ]
          });
@@ -338,22 +331,13 @@ function extractSheetRows(sheetChildren: ReactNode, numCols: number): RowData[] 
             h: p.height ?? 20,
             cells: [
                {
+                  ...EMPTY_CELL_BASE,
                   value: (p.label ? p.label + "  " : "") + (p.value ?? ""),
                   span: p.span,
-                  rowSpan: 1,
-                  bold: false,
-                  italic: false,
-                  underline: false,
                   fontSize: p.fontSize ?? 9,
-                  fontName: "Arial Narrow",
-                  color: "#000000",
-                  bg: null,
                   align: "left",
-                  vAlign: "middle",
                   wrap: true,
-                  border: p.border ?? "thin",
-                  type: "text",
-                  numFmt: null
+                  border: p.border ?? "thin"
                }
             ]
          });
@@ -363,11 +347,12 @@ function extractSheetRows(sheetChildren: ReactNode, numCols: number): RowData[] 
 }
 
 // ═══════════════════════════════════════════════════════════════
-//  CELL — solo visual, no recolecta datos
+//  CELL — imagen centrada perfectamente
 // ═══════════════════════════════════════════════════════════════
 export function Cell({
    children,
    value,
+   image,
    span = 1,
    rowSpan = 1,
    bold = false,
@@ -387,16 +372,25 @@ export function Cell({
    const raw = value !== undefined ? value : children;
    const shown = typeof raw === "string" || typeof raw === "number" || raw == null ? fmtPreview(raw as string | number | null, type) : raw;
 
+   // ✅ Wrapper flex para centrar la imagen horizontal y verticalmente
+   const content = image ? (
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "center", width: "100%", height: "100%", padding: "3px 6px", boxSizing: "border-box" }}>
+         <img src={image} alt="" style={{ maxWidth: "100%", maxHeight: "28px", objectFit: "contain", display: "block" }} />
+      </div>
+   ) : (
+      (shown ?? "")
+   );
+
    return (
       <td
          colSpan={span}
          rowSpan={rowSpan}
          style={{
-            padding: "2px 5px",
+            padding: image ? "0" : "2px 5px",
             boxSizing: "border-box",
             overflow: "hidden",
-            verticalAlign: vAlign,
-            textAlign: align,
+            verticalAlign: image ? "middle" : vAlign,
+            textAlign: image ? "center" : align,
             fontSize,
             lineHeight: 1.3,
             fontWeight: bold ? 700 : 400,
@@ -410,7 +404,7 @@ export function Cell({
             ...extra
          }}
       >
-         {shown ?? ""}
+         {content}
       </td>
    );
 }
@@ -418,17 +412,9 @@ export function Cell({
 export function Empty(props: Omit<CellProps, "value" | "children">) {
    return <Cell {...props} value="" />;
 }
-
-// ═══════════════════════════════════════════════════════════════
-//  ROW
-// ═══════════════════════════════════════════════════════════════
 export function Row({ children, height = 22, bg }: RowProps) {
    return <tr style={{ height, background: bg ?? "transparent" }}>{children}</tr>;
 }
-
-// ═══════════════════════════════════════════════════════════════
-//  SPACER
-// ═══════════════════════════════════════════════════════════════
 export function Spacer({ height = 8 }: SpacerProps) {
    return (
       <tr style={{ height }}>
@@ -437,10 +423,7 @@ export function Spacer({ height = 8 }: SpacerProps) {
    );
 }
 
-// ═══════════════════════════════════════════════════════════════
-//  SHEET
-// ═══════════════════════════════════════════════════════════════
-export function Sheet({ name = "Hoja1", colWidths, freeze, children }: SheetProps) {
+export function Sheet({ colWidths, freeze, children }: SheetProps) {
    return (
       <SheetCtx.Provider value={{ _cols: colWidths.length }}>
          <table
@@ -464,7 +447,7 @@ export function Sheet({ name = "Hoja1", colWidths, freeze, children }: SheetProp
 }
 
 // ═══════════════════════════════════════════════════════════════
-//  WORKBOOK
+//  WORKBOOK — toolbar NO sticky/fixed
 // ═══════════════════════════════════════════════════════════════
 export function Workbook({ children, fileName = "archivo.xlsx", title = "", subtitle = "", zoom: initZoom = 90 }: WorkbookProps) {
    const [zoom, setZoom] = useState(initZoom);
@@ -474,43 +457,30 @@ export function Workbook({ children, fileName = "archivo.xlsx", title = "", subt
       setLoading(true);
       try {
          const wb = new ExcelJS.Workbook();
-
-         // Recorrer children para encontrar Sheets
-         const topEls = flattenChildren(children);
-         for (const el of topEls) {
+         for (const el of flattenChildren(children)) {
             if (el.type !== Sheet) continue;
             const sp = el.props as SheetProps;
-            const sheetName = sp.name ?? "Hoja1";
-
-            const ws = wb.addWorksheet(sheetName, {
-               pageSetup: { paperSize: 9, orientation: "landscape" }
-            });
+            const ws = wb.addWorksheet(sp.name ?? "Hoja1", { pageSetup: { paperSize: 9, orientation: "landscape" } });
             ws.columns = sp.colWidths.map((px) => ({ width: +(px * 0.133).toFixed(1) }));
             if (sp.freeze) ws.views = [{ state: "frozen", ySplit: sp.freeze }];
 
-            // Extraer filas desde los props del árbol React — SIN ejecutar render
             const rows = extractSheetRows(sp.children, sp.colWidths.length);
             const occ: Record<string, true> = {};
             let exR = 1;
-
+const imagesToAdd: { row: number; col: number; span: number; src: string; heightPx: number }[] = [];
             for (const row of rows) {
                ws.getRow(exR).height = row.h;
                let exC = 1;
-
                for (const cd of row.cells) {
                   while (occ[`${exR}_${exC}`]) exC++;
-
-                  const sp2 = cd.span ?? 1;
-                  const rs = cd.rowSpan ?? 1;
-
+                  const sp2 = cd.span ?? 1,
+                     rs = cd.rowSpan ?? 1;
                   if (sp2 > 1 || rs > 1) ws.mergeCells(exR, exC, exR + rs - 1, exC + sp2 - 1);
                   for (let dr = 0; dr < rs; dr++) for (let dc = 0; dc < sp2; dc++) if (dr || dc) occ[`${exR + dr}_${exC + dc}`] = true;
-
                   const cell = ws.getCell(exR, exC);
                   const v = cd.value;
                   const isNum = cd.type === "number" || cd.type === "currency" || cd.type === "percent";
                   cell.value = isNum && v !== null && v !== "" && !isNaN(Number(v)) ? Number(v) : (v ?? "");
-
                   cell.font = {
                      bold: cd.bold,
                      italic: cd.italic,
@@ -519,60 +489,92 @@ export function Workbook({ children, fileName = "archivo.xlsx", title = "", subt
                      name: cd.fontName,
                      color: { argb: toARGB(cd.color) ?? "FF000000" }
                   };
-
                   const bgARGB = toARGB(cd.bg);
                   if (bgARGB) cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: bgARGB } };
-
                   cell.alignment = {
                      horizontal: cd.align as ExcelJS.Alignment["horizontal"],
                      vertical: cd.vAlign as ExcelJS.Alignment["vertical"],
                      wrapText: cd.wrap
                   };
-
                   const bdr = normBdrEJS(cd.border);
                   if (bdr) cell.border = bdr as unknown as ExcelJS.Borders;
-
                   const fmt = numFmtFor(cd.type, cd.numFmt);
                   if (fmt) cell.numFmt = fmt;
-
+if (cd.image) {
+   imagesToAdd.push({ row: exR, col: exC, span: sp2, src: cd.image, heightPx: row.h });
+}
                   exC += sp2;
                }
                exR++;
             }
 
-            // ── AUTO-FIT altura de filas con wrap ──────────────────
-            // Si el texto de una celda con wrapText no cabe en la altura
-            // declarada, se aumenta para que quede visible completo.
-            const PT_PER_COL_UNIT = 7.5; // 1 unidad de ancho col ≈ 7.5px aprox
-            const LINE_PT = 11; // altura por línea en puntos (font ~9pt)
-
+            // Auto-fit
             for (let r = 1; r < exR; r++) {
                const wsRow = ws.getRow(r);
                let maxLines = 1;
-
                wsRow.eachCell({ includeEmpty: false }, (cell) => {
                   if (!cell.alignment?.wrapText) return;
                   const txt = String(cell.value ?? "");
                   if (!txt) return;
                   const colW = ws.getColumn(cell.col).width ?? 10;
-                  const colPx = colW * PT_PER_COL_UNIT;
-                  const fontSize = cell.font?.size ?? 9;
-                  const charsPerLine = Math.max(1, Math.floor(colPx / (fontSize * 0.58)));
-                  const manualLines = txt.split(/\r?\n/);
+                  const cpl = Math.max(1, Math.floor((colW * 7.5) / ((cell.font?.size ?? 9) * 0.58)));
                   let lines = 0;
-                  for (const seg of manualLines) {
-                     lines += Math.max(1, Math.ceil((seg.length || 1) / charsPerLine));
-                  }
+                  for (const seg of txt.split(/\r?\n/)) lines += Math.max(1, Math.ceil((seg.length || 1) / cpl));
                   if (lines > maxLines) maxLines = lines;
                });
-
-               const needed = maxLines * LINE_PT + 6;
-               const current = wsRow.height ?? 15;
-               if (needed > current) wsRow.height = needed;
+               const needed = maxLines * 11 + 6;
+               if (needed > (wsRow.height ?? 15)) wsRow.height = needed;
             }
-            // ───────────────────────────────────────────────────────
-         }
 
+            // Imágenes
+            // Dentro de exportXlsx, después de auto-fit de filas
+            // Reemplaza el bloque ws.addImage dentro del for (const img of imagesToAdd)
+    for (const img of imagesToAdd) {
+       const result = await srcToBase64(img.src);
+       if (!result) continue;
+       try {
+          const imageId = wb.addImage({ base64: result.base64, extension: result.ext });
+
+          const COL_EMU_PER_CHAR = 914400 / 15; // 45720
+          const ROW_EMU_PER_PT = 180000 / 15;
+
+          let totalColEMU = 0;
+          for (let c = 0; c < img.span; c++) {
+             const chars = ws.getColumn(img.col + c).width ?? 8.43;
+             totalColEMU += Math.round(chars * COL_EMU_PER_CHAR);
+          }
+          const totalRowEMU = Math.round((ws.getRow(img.row).height ?? 15) * ROW_EMU_PER_PT);
+
+          // 80% de la celda, centrado = 10% de margen cada lado
+          const imgWemu = Math.round(totalColEMU * 0.8);
+          const imgHemu = Math.round(totalRowEMU * 0.8);
+
+          const offXemu = Math.round(totalColEMU * 0.1);
+          const offYemu = Math.round(totalRowEMU * 0.1);
+
+          ws.addImage(imageId, {
+             tl: {
+                nativeCol: img.col - 1,
+                nativeColOff: offXemu,
+                nativeRow: img.row - 1,
+                nativeRowOff: offYemu
+             } as never,
+             ext: {
+                width: Math.round(imgWemu / 9525),
+                height: Math.round(imgHemu / 9525)
+             }
+          });
+       } catch (e) {
+          console.warn("react-excel-engine: error imagen", e);
+       }
+    }
+         }
+         wb.worksheets.forEach((ws) => {
+            ws.protect("", {
+               selectLockedCells: true,
+               selectUnlockedCells: false
+            });
+         });
          const buf = await wb.xlsx.writeBuffer();
          const blob = new Blob([buf], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
          const url = URL.createObjectURL(blob);
@@ -588,17 +590,24 @@ export function Workbook({ children, fileName = "archivo.xlsx", title = "", subt
       }
    }, [children, fileName]);
 
+   const zBtn: CSSProperties = {
+      width: 26,
+      height: 26,
+      border: "1px solid #e0e3e8",
+      background: "#fafafa",
+      borderRadius: 5,
+      cursor: "pointer",
+      fontSize: 15,
+      color: "#555",
+      display: "flex",
+      alignItems: "center",
+      justifyContent: "center"
+   };
+
    return (
-      <div
-         style={{
-            minHeight: "100vh",
-            display: "flex",
-            flexDirection: "column",
-            background: "#f0f2f5",
-            fontFamily: "'Segoe UI', system-ui, sans-serif"
-         }}
-      >
-         {/* ── TOOLBAR ── */}
+      // ✅ Sin minHeight ni position fixed/sticky — fluye normal con el modal
+      <div style={{ display: "flex", flexDirection: "column", background: "#f0f2f5", fontFamily: "'Segoe UI', system-ui, sans-serif" }}>
+         {/* ✅ Toolbar — position estático, se desplaza con el scroll */}
          <div
             style={{
                background: "#fff",
@@ -609,12 +618,9 @@ export function Workbook({ children, fileName = "archivo.xlsx", title = "", subt
                display: "flex",
                alignItems: "center",
                gap: 14,
-               position: "relative",
-               top: 0,
-               zIndex: 100
+               flexShrink: 0
             }}
          >
-            {/* Ícono Excel */}
             <div
                style={{
                   width: 32,
@@ -622,7 +628,6 @@ export function Workbook({ children, fileName = "archivo.xlsx", title = "", subt
                   flexShrink: 0,
                   borderRadius: 6,
                   background: "linear-gradient(135deg,#1d6f42 0%,#21a366 100%)",
-                  boxShadow: "0 1px 5px rgba(33,163,102,.35)",
                   display: "flex",
                   alignItems: "center",
                   justifyContent: "center"
@@ -634,18 +639,13 @@ export function Workbook({ children, fileName = "archivo.xlsx", title = "", subt
                   <path d="M9 13l2 3 2-3M9 16h6" stroke="white" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
                </svg>
             </div>
-
-            {/* Título / subtítulo */}
             {(title || subtitle) && (
                <div style={{ lineHeight: 1.35 }}>
                   {title && <div style={{ fontWeight: 700, fontSize: 13, color: "#111" }}>{title}</div>}
                   {subtitle && <div style={{ fontSize: 10, color: "#999", marginTop: 1 }}>{subtitle}</div>}
                </div>
             )}
-
             {(title || subtitle) && <div style={{ width: 1, height: 26, background: "#e5e7eb", flexShrink: 0 }} />}
-
-            {/* Badge listo */}
             <div
                style={{
                   display: "flex",
@@ -661,39 +661,13 @@ export function Workbook({ children, fileName = "archivo.xlsx", title = "", subt
                   flexShrink: 0
                }}
             >
-               <span
-                  style={{
-                     width: 6,
-                     height: 6,
-                     borderRadius: "50%",
-                     background: "#22c55e",
-                     display: "inline-block"
-                  }}
-               />
+               <span style={{ width: 6, height: 6, borderRadius: "50%", background: "#22c55e", display: "inline-block" }} />
                Listo
             </div>
-
             <div style={{ flex: 1 }} />
-
-            {/* Zoom − n% + */}
             <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
                <span style={{ fontSize: 11, color: "#999", marginRight: 2 }}>Zoom</span>
-               <button
-                  onClick={() => setZoom((z) => Math.max(40, z - 15))}
-                  style={{
-                     width: 26,
-                     height: 26,
-                     border: "1px solid #e0e3e8",
-                     background: "#fafafa",
-                     borderRadius: 5,
-                     cursor: "pointer",
-                     fontSize: 15,
-                     color: "#555",
-                     display: "flex",
-                     alignItems: "center",
-                     justifyContent: "center"
-                  }}
-               >
+               <button onClick={() => setZoom((z) => Math.max(40, z - 15))} style={zBtn}>
                   −
                </button>
                <div
@@ -706,35 +680,17 @@ export function Workbook({ children, fileName = "archivo.xlsx", title = "", subt
                      background: "#f5f6f8",
                      border: "1px solid #e0e3e8",
                      borderRadius: 5,
-                     padding: "4px 4px",
+                     padding: "4px",
                      userSelect: "none"
                   }}
                >
                   {zoom}%
                </div>
-               <button
-                  onClick={() => setZoom((z) => Math.min(150, z + 15))}
-                  style={{
-                     width: 26,
-                     height: 26,
-                     border: "1px solid #e0e3e8",
-                     background: "#fafafa",
-                     borderRadius: 5,
-                     cursor: "pointer",
-                     fontSize: 15,
-                     color: "#555",
-                     display: "flex",
-                     alignItems: "center",
-                     justifyContent: "center"
-                  }}
-               >
+               <button onClick={() => setZoom((z) => Math.min(200, z + 15))} style={zBtn}>
                   +
                </button>
             </div>
-
             <div style={{ width: 1, height: 26, background: "#e5e7eb", flexShrink: 0 }} />
-
-            {/* Botón descargar */}
             <button
                onClick={exportXlsx}
                disabled={loading}
@@ -775,7 +731,7 @@ export function Workbook({ children, fileName = "archivo.xlsx", title = "", subt
             </button>
          </div>
 
-         {/* ── INFO BAR ── */}
+         {/* Sub-barra */}
          <div
             style={{
                padding: "7px 26px",
@@ -785,32 +741,24 @@ export function Workbook({ children, fileName = "archivo.xlsx", title = "", subt
                fontSize: 11,
                color: "#aaa",
                borderBottom: "1px solid #e8eaed",
-               background: "#f8f9fb"
+               background: "#f8f9fb",
+               flexShrink: 0
             }}
          >
             <svg width="11" height="11" viewBox="0 0 24 24" fill="none">
                <rect x="3" y="3" width="18" height="18" rx="2" stroke="#bbb" strokeWidth="2" />
                <path d="M3 9h18M9 9v12" stroke="#bbb" strokeWidth="1.8" />
             </svg>
-            Vista previa — el archivo descargado puede variar ligeramente en tipografia
+            Vista previa — el archivo descargado puede variar ligeramente en tipografía
          </div>
 
-         {/* ── PREVIEW ── */}
-         <div
-            style={{
-               flex: 1,
-               overflow: "auto",
-               padding: "28px 32px 48px",
-               display: "flex",
-               alignItems: "flex-start",
-               justifyContent: "flex-start"
-            }}
-         >
+         {/* Preview */}
+         <div style={{ overflow: "auto", padding: "28px 32px 48px", display: "flex", alignItems: "flex-start", justifyContent: "flex-start" }}>
             <div
                style={{
                   display: "inline-block",
                   transformOrigin: "top left",
-                  transform: "scale(" + zoom / 100 + ")",
+                  transform: `scale(${zoom / 100})`,
                   background: "#fff",
                   borderRadius: 3,
                   border: "1px solid #dde1e7",
@@ -830,7 +778,6 @@ export function Workbook({ children, fileName = "archivo.xlsx", title = "", subt
 // ═══════════════════════════════════════════════════════════════
 //  HELPERS DE ALTO NIVEL
 // ═══════════════════════════════════════════════════════════════
-
 export interface TitleRowProps {
    children?: ReactNode;
    span: number;
@@ -898,9 +845,7 @@ function injectToCell(children: ReactNode, defaults: Partial<CellProps>): ReactN
    const inject = (c: React.ReactElement) => {
       if (c.type !== Cell && c.type !== Empty) return c;
       const overrides: Partial<CellProps> = {};
-      for (const key of Object.keys(defaults) as Array<keyof CellProps>) {
-         if (c.props[key] === undefined) (overrides as Record<string, unknown>)[key] = defaults[key];
-      }
+      for (const key of Object.keys(defaults) as Array<keyof CellProps>) if (c.props[key] === undefined) (overrides as Record<string, unknown>)[key] = defaults[key];
       return React.cloneElement(c, overrides);
    };
    if (Array.isArray(children)) return children.map((c) => (React.isValidElement(c) ? inject(c) : c));

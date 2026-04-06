@@ -13,6 +13,7 @@ export interface ProceduresCreatedAt {
    order_date?: string; // YYYY-MM-DD
    weekday?: string; // Monday, Tuesday, etc.
    total_procedures: number;
+   error?:boolean
 }
 
 

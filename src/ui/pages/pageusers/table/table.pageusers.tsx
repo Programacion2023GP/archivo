@@ -2,19 +2,22 @@ import { VscDiffAdded } from "react-icons/vsc";
 import CustomButton from "../../../components/button/custombuttom";
 import CustomTable from "../../../components/table/customtable";
 import Tooltip from "../../../components/toltip/Toltip";
-import { LuRefreshCcw } from "react-icons/lu";
+import { LuImagePlus, LuRefreshCcw } from "react-icons/lu";
 import { showConfirmationAlert, showToast } from "../../../../sweetalert/Sweetalert";
 import { FaSync, FaTrash } from "react-icons/fa";
 import { GenericDataReturn } from "../../../../hooks/usegenericdata";
-import { Users } from "../../../../domain/models/users/users.domain";
+import { Permissions, Users } from "../../../../domain/models/users/users.domain";
 import { CiEdit } from "react-icons/ci";
 import { PermissionRoute } from "../../../../App";
+import PhotoZoom from "../../../components/images/images";
 
 type TablePageUsersProps = {
    usersData: GenericDataReturn<Users>;
+   permissionsData: GenericDataReturn<Permissions>;
 };
 
-const TablePageUsers = ({ usersData }: TablePageUsersProps) => {
+const TablePageUsers = ({ usersData,permissionsData }: TablePageUsersProps) => {
+   console.log(usersData.items);
    return (
       <CustomTable
          headerActions={() => (
@@ -59,6 +62,11 @@ const TablePageUsers = ({ usersData }: TablePageUsersProps) => {
                headerName: "Nombre Completo"
             },
             {
+               field: "signature",
+               headerName: "Firma",
+               renderField: (v,row) => <PhotoZoom alt={row.fullName as string} src={v as string}/>
+            },
+            {
                field: "departament",
                headerName: "Departamento"
             },
@@ -90,7 +98,7 @@ const TablePageUsers = ({ usersData }: TablePageUsersProps) => {
                            <Tooltip content="Dar de baja usuario">
                               <CustomButton
                                  size="sm"
-                                 color="red"
+                                 color="ruby"
                                  onClick={() => {
                                     showConfirmationAlert(`Eliminar`, {
                                        text: "Se desactiva el usuario"
@@ -101,6 +109,20 @@ const TablePageUsers = ({ usersData }: TablePageUsersProps) => {
                                  }}
                               >
                                  <FaTrash />
+                              </CustomButton>
+                           </Tooltip>
+                        </PermissionRoute>
+                        <PermissionRoute requiredPermission={"usuarios_subirfirmas"}>
+                           <Tooltip content="subir firma">
+                              <CustomButton
+                                 size="sm"
+                                 color="lime"
+                                 onClick={() => {
+                                    usersData.setConstant("id", row.id);
+                                    permissionsData.setOpen();
+                                 }}
+                              >
+                                 <LuImagePlus />
                               </CustomButton>
                            </Tooltip>
                         </PermissionRoute>

@@ -85,7 +85,7 @@ export const useGenericStore = <T extends { id?: number }>(initialValues: T) => 
       },
       request: async (
          options: {
-            open?:boolean,
+            open?: boolean;
             data: Partial<T>;
             url: string;
             method: "POST" | "PUT" | "GET" | "DELETE";
@@ -109,7 +109,9 @@ export const useGenericStore = <T extends { id?: number }>(initialValues: T) => 
 
             if (result.ok) {
                if (options.method !== "GET") {
-                  showToast(result.message || "Operación exitosa", "success");
+                  if (result.message) {
+                     showToast(result.message || "Operación exitosa", "success");
+                  }
                }
                // Si es GET, actualizar items y devolver array
                if (options.method === "GET") {
@@ -119,7 +121,7 @@ export const useGenericStore = <T extends { id?: number }>(initialValues: T) => 
                   return dataArray;
                } else {
                   if (options.getData) {
-                     // console.log("aqui es",options.getData)
+                     console.log("aqui es", options.getData);
                      await get().fetchData(repo);
                   }
                }
@@ -127,7 +129,9 @@ export const useGenericStore = <T extends { id?: number }>(initialValues: T) => 
                // Para POST/PUT, devolver el dato individual (no array)
                return result.data;
             } else {
-               showToast(result.message || "Error en la operación", "error");
+               if (result.message) {
+                  showToast(result.message || "Error en la operación", "error");
+               }
 
                set({ error: result.message });
                throw new Error(result.message);
@@ -161,7 +165,7 @@ export const useGenericStore = <T extends { id?: number }>(initialValues: T) => 
             }
          } catch (error) {
             const msg = error instanceof Error ? error.message : "Error desconocido";
-            set({ error: msg,items:[] });
+            set({ error: msg, items: [] });
             // showToast(msg, "error");
 
             return []; // evitar undefined

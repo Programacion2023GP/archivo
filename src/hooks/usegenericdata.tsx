@@ -51,10 +51,12 @@ export const useGenericData = <T extends { id?: number }>({ initialState, prefix
    const requestWithPrefix = useCallback(
       async (
          options: {
+            open?: boolean;
             data?: Partial<T>;
             url: string;
             method: "POST" | "PUT" | "GET" | "DELETE";
             formData?: boolean;
+            getData?: boolean;
          },
          callback?: {
             then?: () => void;
@@ -100,7 +102,7 @@ export type GenericDataReturn<T extends { id?: number }> = {
    removeItemData: (item: T) => Promise<void>;
    request: (
       options: {
-         open?:boolean;
+         open?: boolean;
          data?: Partial<T>;
          url: string;
          method: "POST" | "PUT" | "GET" | "DELETE";
@@ -111,6 +113,6 @@ export type GenericDataReturn<T extends { id?: number }> = {
          then?: () => void;
          error?: () => void;
       }
-   ) => Promise<any>;
+   ) => Promise<T | T[] | undefined>;
    setPrefix: (prefix: string) => void;
 };

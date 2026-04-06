@@ -1,4 +1,4 @@
-import { Dispatch, SetStateAction } from "react";
+import React,{ Dispatch, SetStateAction, useEffect, useState } from "react";
 import { Procedure } from "../../../../domain/models/procedure/procedure";
 import { GenericDataReturn } from "../../../../hooks/usegenericdata";
 import { Cell, Empty, Row, Sheet, Spacer, Workbook } from "../../../components/excel/customexcel";
@@ -14,31 +14,182 @@ type TablePageProceudreProps = {
 };
 
 const ExcelPageProcedure = ({ procedureData, open, setOpen, listAutorized }: TablePageProceudreProps) => {
+   const [items, setItems] = useState<ListAutorized[]>([]);
+   useEffect(() => {
+      const init = async () => {
+         try {
+            const response = await listAutorized.request({
+               method: "POST",
+               url: "signature/listautorized",
+               data: { procedure_id: procedureData?.items[0]?.id },
+               getData: false
+            });
+            setItems(response as ListAutorized[]);
+         } catch (error) {
+            console?.error("Error:", error);
+         }
+      };
+      init();
+   }, [open]);
+
    const FONDO = "R. AYUNTAMIENTO DE GOMEZ PALACIO, DGO";
    const SECCION = procedureData?.items[0]?.departament || "";
+   const REVISO = procedureData?.items[0]?.reviewed_user || "";
+
    const SERIE = procedureData?.items[0]?.serie || "";
-   const LEYENDA = "EL PRESENTE INVENTARIO CONSTA DE 1 HOJA Y AMPARA LA CANTIDAD DE 3 EXPEDIENTES DE LOS AÑOS EXTREMOS 2024-2025";
-   const FECHA_ENTREGA = "PENDIENTE";
+   const FECHA_ENTREGA = formatDatetime(new Date(), true, DateFormat.DDDD_DD_DE_MMMM_DE_YYYY);
 
    const R = "#C41E3A";
    const T = "thin";
    const COLS = [42, 48, 95, 75, 80, 44, 44, 44, 40, 50, 52, 52, 44, 60, 65, 46, 40, 40, 65];
    const N = COLS.length;
 
-   // Filtrar usuarios que firmaron (signedBy = true)
-   // Usamos fullName en lugar de name
-   const autorizados = listAutorized?.items?.filter((item) => item.signedBy === true) || [];
+   const autorizadosRaw = Array.isArray(items) ? items : items;
+   const autorizados = (autorizadosRaw || []).filter((item) => item.signedBy);
+   const totalAutorizados = autorizados.length;
+
+   // Obtener URLs de firmas (debes ajustar según tu modelo de datos)
+const elaboroSignature = procedureData?.items[0]?.["signature_b64"] || "";
+const revisoSignature = procedureData?.items[0]?.["reviewed_signature_b64"] || "";
+
+   // Renderiza la sección de firmas completa
+   const renderSignatureSection = () => {
+      // Caso sin autorizados
+      if (totalAutorizados === 0) {
+         return (
+            <>
+               <Row height={20}>
+                  <Cell span={6} bold fontSize={8} border={{ all: R }}>
+                     ELABORÓ (20)
+                  </Cell>
+                  <Empty span={2} />
+                  <Cell span={6} bold fontSize={8} border={{ all: R }}>
+                     REVISÓ (21)
+                  </Cell>
+                  <Empty span={2} />
+                  <Cell span={3} bold fontSize={8} border={{ all: R }}>
+                     AUTORIZÓ (22)
+                  </Cell>
+               </Row>
+               <Row height={40}>
+                  <Cell span={6} image={elaboroSignature} border={{ left: R, right: R, top: R }} style={{ height: 40, minHeight: 40 }} />
+                  <Empty span={2} />
+                  <Cell span={6} image={revisoSignature} border={{ left: R, right: R, top: R }} />
+                  <Empty span={2} />
+                  <Cell span={3} border={{ left: R, right: R, top: R }} value="" />
+               </Row>
+               <Row height={46}>
+                  <Cell span={6} border={{ left: R, right: R, bottom: R }} value={procedureData?.items[0]?.user_created || ""} />
+                  <Empty span={2} />
+                  <Cell span={6} border={{ left: R, right: R, bottom: R }} value={REVISO} />
+                  <Empty span={2} />
+                  <Cell span={3} border={{ left: R, right: R, bottom: R }} value="" />
+               </Row>
+               <Row height={26}>
+                  <Cell span={6} fontSize={8} border={{ all: R }} wrap>
+                     NOMBRE Y FIRMA
+                  </Cell>
+                  <Empty span={2} />
+                  <Cell span={6} fontSize={8} border={{ all: R }} wrap>
+                     {"NOMBRE Y FIRMA\nRESPONSABLE DE ARCHIVO DE TRÁMITE"}
+                  </Cell>
+                  <Empty span={2} />
+                  <Cell span={3} fontSize={8} border={{ all: R }} wrap>
+                     {"NOMBRE Y FIRMA\nTITULAR DE LA UNIDAD ADMINISTRATIVA"}
+                  </Cell>
+               </Row>
+            </>
+         );
+      }
+
+      // Con al menos un autorizado
+      return (
+         <>
+            {/* Fila de títulos */}
+            <Row height={20}>
+               <Cell span={6} bold fontSize={8} border={{ all: R }}>
+                  ELABORÓ (20)
+               </Cell>
+               <Empty span={2} />
+               <Cell span={6} bold fontSize={8} border={{ all: R }}>
+                  REVISÓ (21)
+               </Cell>
+               <Empty span={2} />
+               <Cell span={3} bold fontSize={8} border={{ all: R }}>
+                  AUTORIZÓ (22)
+               </Cell>
+            </Row>
+
+            {/* Fila de imágenes */}
+            <Row height={40}>
+               <Cell span={6} image={elaboroSignature} border={{ left: R, right: R, top: R }} />
+               <Empty span={2} />
+               <Cell span={6} image={revisoSignature} border={{ left: R, right: R, top: R }} />
+               <Empty span={2} />
+               <Cell span={3} image={autorizados[0]?.["signature_b64"] || ""} border={{ left: R, right: R, top: R }} />
+            </Row>
+
+            {/* Fila de nombres */}
+            <Row height={46}>
+               <Cell span={6} border={{ left: R, right: R, bottom: R }} value={procedureData?.items[0]?.user_created || ""} />
+               <Empty span={2} />
+               <Cell span={6} border={{ left: R, right: R, bottom: R }} value={REVISO} />
+               <Empty span={2} />
+               <Cell span={3} border={{ left: R, right: R, bottom: R }} wrap value={autorizados[0]?.fullName || autorizados[0]?.name || ""} />
+            </Row>
+
+            {/* Fila de etiquetas */}
+            <Row height={26}>
+               <Cell span={6} fontSize={8} border={{ all: R }} wrap>
+                  NOMBRE Y FIRMA
+               </Cell>
+               <Empty span={2} />
+               <Cell span={6} fontSize={8} border={{ all: R }} wrap>
+                  {"NOMBRE Y FIRMA\nRESPONSABLE DE ARCHIVO DE TRÁMITE"}
+               </Cell>
+               <Empty span={2} />
+               <Cell span={3} fontSize={8} border={{ all: R }} wrap>
+                  {"NOMBRE Y FIRMA\nTITULAR DE LA UNIDAD ADMINISTRATIVA"}
+               </Cell>
+            </Row>
+
+            {/* Filas adicionales para autorizados restantes */}
+            {autorizados.slice(1).map((autorizado, idx) => (
+               <React.Fragment key={idx}>
+                  <Row height={40}>
+                     <Empty span={6} />
+                     <Empty span={2} />
+                     <Empty span={6} />
+                     <Empty span={2} />
+                     <Cell span={3} image={autorizado?.["signature_b64"] || ""} border={{ left: R, right: R, top: R }} />
+                  </Row>
+                  <Row height={46}>
+                     <Empty span={6} />
+                     <Empty span={2} />
+                     <Empty span={6} />
+                     <Empty span={2} />
+                     <Cell span={3} border={{ left: R, right: R, bottom: R }} wrap value={autorizado.fullName || autorizado.name || ""} />
+                  </Row>
+                  <Row height={26}>
+                     <Empty span={6} />
+                     <Empty span={2} />
+                     <Empty span={6} />
+                     <Empty span={2} />
+                     <Cell span={3} fontSize={8} border={{ all: R }} wrap>
+                        {"NOMBRE Y FIRMA\nTITULAR DE LA UNIDAD ADMINISTRATIVA"}
+                     </Cell>
+                  </Row>
+               </React.Fragment>
+            ))}
+         </>
+      );
+   };
 
    return (
-      <CustomModal
-         isOpen={open}
-         onClose={() => {
-            setOpen(!open);
-         }}
-         title={""}
-      >
-         <Workbook zoom={150} fileName="archivo_tramite.xlsx" title="Inventario General de Archivo de Trámite" subtitle={FONDO}>
-            <Sheet name="Archivo Trámite" colWidths={COLS} freeze={7}>
+      <CustomModal isOpen={open} onClose={() => setOpen(!open)} title={""}>
+         <Workbook zoom={150} fileName="archivo_tramite?.xlsx" title="Inventario General de Archivo de Trámite" subtitle={FONDO}>
+            <Sheet name="Archivo Trámite" colWidths={COLS} >
+               {/* Encabezados (sin cambios) */}
                <Row height={26}>
                   <Cell span={N} bold fontSize={13} bg={R} color="#fff">
                      ARCHIVO DE TRÁMITE
@@ -51,22 +202,21 @@ const ExcelPageProcedure = ({ procedureData, open, setOpen, listAutorized }: Tab
                </Row>
                <Row height={18}>
                   <Cell span={N} align="left" border={T} fontSize={9}>
-                     <b>FONDO:</b>
-                     {"  " + FONDO}
+                     <b>FONDO:</b> {FONDO}
                   </Cell>
                </Row>
                <Row height={16}>
                   <Cell span={N} align="left" border={T} fontSize={9}>
-                     <b>SECCIÓN:</b>
-                     {"  " + SECCION}
+                     <b>SECCIÓN:</b> {SECCION}
                   </Cell>
                </Row>
                <Row height={16}>
                   <Cell span={N} align="left" border={T} fontSize={9}>
-                     <b>SERIE:</b>
-                     {"  " + SERIE}
+                     <b>SERIE:</b> {SERIE}
                   </Cell>
                </Row>
+
+               {/* Cabecera de tabla (sin cambios) */}
                <Row height={38}>
                   <Cell bold border={T} fontSize={7} rowSpan={2} wrap>
                      {"NÚM.\nCONSECUTIVO\n(4)"}
@@ -143,147 +293,36 @@ const ExcelPageProcedure = ({ procedureData, open, setOpen, listAutorized }: Tab
                      POSICIÓN
                   </Cell>
                </Row>
+
+               {/* Datos de procedimientos (sin cambios) */}
                {procedureData.items.map((e, i) => (
-                  <Row key={e.id} height={24}>
-                     <Cell border={T} fontSize={9}>
-                        {i + 1}
-                     </Cell>
-                     <Cell border={T} fontSize={9}>
-                        {e.fileNumber}
-                     </Cell>
-                     <Cell border={T} fontSize={9} align="left">
-                        {e.archiveCode}
-                     </Cell>
-                     <Cell border={T} fontSize={9} align="left" wrap>
-                        {e.process}
-                     </Cell>
-                     <Cell border={T} fontSize={9} align="left" wrap>
-                        {e.description}
-                     </Cell>
-                     <Cell border={T} fontSize={9}>
-                        {formatDatetime(e.startDate, true, DateFormat.DDDD_DD_DE_MMMM_DE_YYYY) as string}
-                     </Cell>
-                     <Cell border={T} fontSize={9}>
-                        {formatDatetime(e.endDate, true, DateFormat.DDDD_DD_DE_MMMM_DE_YYYY) as string}
-                     </Cell>
-                     <Cell border={T} fontSize={9}>
-                        {e.totalPages}
-                     </Cell>
-                     <Cell border={T} fontSize={9}>
-                        {e.fisic ? "✓" : "X"}
-                     </Cell>
-                     <Cell border={T} fontSize={9}>
-                        {e.electronic ? "✓" : "X"}
-                     </Cell>
-                     <Cell border={T} fontSize={9}>
-                        {e.administrative_value ? "✓" : "X"}
-                     </Cell>
-                     <Cell border={T} fontSize={9}>
-                        {e.accounting_fiscal_value ? "✓" : "X"}
-                     </Cell>
-                     <Cell border={T} fontSize={9}>
-                        {e.legal_value ? "✓" : "X"}
-                     </Cell>
-                     <Cell border={T} fontSize={9}>
-                        {e.retention_period_current ? "✓" : "X"}
-                     </Cell>
-                     <Cell border={T} fontSize={9}>
-                        {e.retention_period_archive ? "✓" : "X"}
-                     </Cell>
-                     <Cell border={T} fontSize={9}>
-                        {e.location_building ? "✓" : "X"}
-                     </Cell>
-                     <Cell border={T} fontSize={9}>
-                        {e.location_furniture ? "✓" : "X"}
-                     </Cell>
-                     <Cell border={T} fontSize={9}>
-                        {e.location_position ? "✓" : "X"}
-                     </Cell>
-                     <Cell border={T} fontSize={9} align="left" wrap>
-                        {e.observation}
-                     </Cell>
+                  <Row key={e?.id} height={24}>
+                     <Cell border={T} fontSize={9} value={i + 1} />
+                     <Cell border={T} fontSize={9} value={e?.fileNumber} />
+                     <Cell border={T} fontSize={9} align="left" value={e?.archiveCode} />
+                     <Cell border={T} fontSize={9} align="left" wrap value={e?.process} />
+                     <Cell border={T} fontSize={9} align="left" wrap value={e?.description} />
+                     <Cell border={T} fontSize={9} value={formatDatetime(e?.startDate, true, DateFormat.DDDD_DD_DE_MMMM_DE_YYYY) as string} />
+                     <Cell border={T} fontSize={9} value={formatDatetime(e?.endDate, true, DateFormat.DDDD_DD_DE_MMMM_DE_YYYY) as string} />
+                     <Cell border={T} fontSize={9} value={e?.totalPages} />
+                     <Cell border={T} fontSize={9} value={e?.fisic ? "✓" : "X"} />
+                     <Cell border={T} fontSize={9} value={e?.electronic ? "✓" : "X"} />
+                     <Cell border={T} fontSize={9} value={e?.administrative_value ? "✓" : "X"} />
+                     <Cell border={T} fontSize={9} value={e?.accounting_fiscal_value ? "✓" : "X"} />
+                     <Cell border={T} fontSize={9} value={e?.legal_value ? "✓" : "X"} />
+                     <Cell border={T} fontSize={9} value={e?.retention_period_current ? "✓" : "X"} />
+                     <Cell border={T} fontSize={9} value={e?.retention_period_archive ? "✓" : "X"} />
+                     <Cell border={T} fontSize={9} value={e?.location_building ? "✓" : "X"} />
+                     <Cell border={T} fontSize={9} value={e?.location_furniture ? "✓" : "X"} />
+                     <Cell border={T} fontSize={9} value={e?.location_position ? "✓" : "X"} />
+                     <Cell border={T} fontSize={9} align="left" wrap value={e?.observation} />
                   </Row>
                ))}
 
                <Spacer height={14} />
 
-               {/* Fila de títulos: ELABORÓ, REVISÓ, AUTORIZÓ (dinámico) */}
-               <Row height={20}>
-                  <Cell span={6} bold fontSize={8} border={{ all: R }}>
-                     ELABORÓ (20)
-                  </Cell>
-                  <Empty span={2} />
-                  <Cell span={6} bold fontSize={8} border={{ all: R }}>
-                     REVISÓ (21)
-                  </Cell>
-                  <Empty span={2} />
-
-                  {/* Títulos dinámicos para cada autorizado */}
-                  {autorizados.map((autorizado, index) => (
-                     <Cell key={`title-${autorizado.id}`} span={4} bold fontSize={8} border={{ all: R }}>
-                        AUTORIZÓ {autorizados.length > 1 ? `(${index + 1})` : "(22)"}
-                     </Cell>
-                  ))}
-
-                  {/* Si no hay autorizados, mostrar celda por defecto */}
-                  {autorizados.length === 0 && (
-                     <Cell span={4} bold fontSize={8} border={{ all: R }}>
-                        AUTORIZÓ (22)
-                     </Cell>
-                  )}
-               </Row>
-
-               {/* Fila de nombres - CORREGIDO: usar fullName en lugar de name */}
-               <Row height={46}>
-                  <Cell span={6} border={{ left: R, right: R }}>
-                     {procedureData?.items[0]?.user_created || ""}
-                  </Cell>
-                  <Empty span={2} />
-                  <Cell span={6} border={{ left: R, right: R }}>
-                     {""}
-                  </Cell>
-                  <Empty span={2} />
-
-                  {/* Nombres de cada autorizado - USAR fullName */}
-                  {autorizados.map((autorizado) => (
-                     <Cell key={`name-${autorizado.id}`} span={4} border={{ left: R, right: R }}>
-                        {autorizado.fullName || autorizado.name || ""}
-                     </Cell>
-                  ))}
-
-                  {/* Si no hay autorizados, mostrar celda vacía */}
-                  {autorizados.length === 0 && (
-                     <Cell span={4} border={{ left: R, right: R }}>
-                        {""}
-                     </Cell>
-                  )}
-               </Row>
-
-               {/* Fila de etiquetas: NOMBRE Y FIRMA */}
-               <Row height={26}>
-                  <Cell span={6} fontSize={8} border={{ all: R }} wrap>
-                     NOMBRE Y FIRMA
-                  </Cell>
-                  <Empty span={2} />
-                  <Cell span={6} fontSize={8} border={{ all: R }} wrap>
-                     {"NOMBRE Y FIRMA\nRESPONSABLE DE ARCHIVO DE TRÁMITE"}
-                  </Cell>
-                  <Empty span={2} />
-
-                  {/* Etiquetas para cada autorizado */}
-                  {autorizados.map((autorizado) => (
-                     <Cell key={`label-${autorizado.id}`} span={4} fontSize={8} border={{ all: R }} wrap>
-                        {"NOMBRE Y FIRMA\nTITULAR DE LA UNIDAD ADMINISTRATIVA"}
-                     </Cell>
-                  ))}
-
-                  {/* Si no hay autorizados, mostrar celda por defecto */}
-                  {autorizados.length === 0 && (
-                     <Cell span={4} fontSize={8} border={{ all: R }} wrap>
-                        {"NOMBRE Y FIRMA\nTITULAR DE LA UNIDAD ADMINISTRATIVA"}
-                     </Cell>
-                  )}
-               </Row>
+               {/* Sección de firmas */}
+               {renderSignatureSection()}
 
                <Spacer height={10} />
                <Row height={20}>

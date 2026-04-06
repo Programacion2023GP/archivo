@@ -7,6 +7,8 @@ import getEmployed from "../../../utils/employes";
 import useUsersData from "../../hooks/useUsersData";
 import usePermissionsData from "../../hooks/usePermissionsData";
 import useDepartamentsData from "../../hooks/useDepartamentsData";
+import CustomModal from "../../components/modal/modal";
+import FormImagePageUsers from "./form/form.image.pageusers";
 
 const PageUsersPanel = () => {
    const users = useUsersData();
@@ -30,8 +32,12 @@ const PageUsersPanel = () => {
                   validationSchema={usersValidator}
                />
             )}
-            table={() => <TablePageUsers usersData={users} />}
+            table={() => <TablePageUsers usersData={users} permissionsData={permissions} />}
+            // solo se usa permisos para abrir y cerrar firmas para reducir codigo
          />
+         <CustomModal title="subir firma" isOpen={permissions.open} onClose={permissions.setOpen}>
+            <FormImagePageUsers usersData={users} permissionsData={permissions} />
+         </CustomModal>
       </>
    );
 };

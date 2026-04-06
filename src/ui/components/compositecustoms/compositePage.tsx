@@ -43,7 +43,7 @@ const CompositePage: React.FC<PropsCompositePage> = ({
          onClose && onClose();
          setIsClosing(false);
          setIsExpanded(false);
-      }, 300);
+      }, 100);
    };
 
    const toggleExpand = () => setIsExpanded(!isExpanded);

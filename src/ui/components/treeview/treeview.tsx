@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
-import { User, Building2, Check, ChevronUp, ChevronDown } from "lucide-react";
+import { User, Building2, Check, ChevronUp, ChevronDown, AlertCircle } from "lucide-react";
 
 interface ChainNode {
    [key: string]: any;
@@ -17,8 +17,11 @@ interface CustomTreeViewProps {
    showGroup?: boolean;
    showDirector?: boolean;
    showId?: boolean;
-   showProgressBar?: boolean; // nueva: muestra barra de progreso
-   autoScrollToActive?: boolean; // nueva: scroll automático al nodo activo
+   showProgressBar?: boolean;
+   autoScrollToActive?: boolean;
+   statusMessage?: string; // nuevo: mensaje personalizado (ej: "Cancelado", "Rechazado")
+   showStatusMessage?: boolean; // nuevo: controla si mostrar el mensaje
+   statusMessageCondition?: (node: ChainNode, index: number) => boolean; // nuevo: condición para mostrar el mensaje
 }
 
 const normalize = (val: any): string => (typeof val === "string" ? val.trim().toUpperCase() : "");
@@ -34,7 +37,9 @@ const TOKENS = {
       cardAccent: "#1D9E75",
       nameColor: "#085041",
       badgeColor: "#0F6E56",
-      badgeBg: "#E1F5EE"
+      badgeBg: "#E1F5EE",
+      messageBg: "#D1FAE5",
+      messageColor: "#065F46"
    },
    pend: {
       markerBg: "#E5A535",
@@ -45,7 +50,9 @@ const TOKENS = {
       cardAccent: "#BA7517",
       nameColor: "#633806",
       badgeColor: "#633806",
-      badgeBg: "#FAEEDA"
+      badgeBg: "#FAEEDA",
+      messageBg: "#FEF3C7",
+      messageColor: "#92400E"
    }
 };
 
@@ -62,7 +69,10 @@ const CustomTreeView = ({
    showDirector = true,
    showId = false,
    showProgressBar = true,
-   autoScrollToActive = false
+   autoScrollToActive = false,
+   statusMessage = "Cancelado", // valor por defecto
+   showStatusMessage = false,
+   statusMessageCondition
 }: CustomTreeViewProps) => {
    const [focusedIndex, setFocusedIndex] = useState<number>(-1);
    const containerRef = useRef<HTMLDivElement>(null);
@@ -192,6 +202,11 @@ const CustomTreeView = ({
                const completed = idx <= completedUpTo;
                const isActive = idx === completedUpTo;
                const token = completed ? TOKENS.ok : TOKENS.pend;
+               
+               // Verificar si debe mostrar el mensaje de estado personalizado
+               const shouldShowMessage = showStatusMessage && statusMessageCondition 
+                  ? statusMessageCondition(item, idx)
+                  : false;
 
                const name = item[nameField] ?? "—";
                const group = item[groupField];
@@ -228,8 +243,8 @@ const CustomTreeView = ({
                               width: 28,
                               height: 28,
                               borderRadius: "50%",
-                              background: token.markerBg,
-                              border: `2px solid ${token.markerBorder}`,
+                              background: shouldShowMessage ? "#DC2626" : token.markerBg,
+                              border: `2px solid ${shouldShowMessage ? "#FCA5A5" : token.markerBorder}`,
                               display: "flex",
                               alignItems: "center",
                               justifyContent: "center",
@@ -243,7 +258,7 @@ const CustomTreeView = ({
                            }}
                            title={`${idx + 1}. ${name}${director ? ` - ${director}` : ""}`}
                         >
-                           {completed ? <Check size={14} /> : idx + 1}
+                           {shouldShowMessage ? <AlertCircle size={14} /> : completed ? <Check size={14} /> : idx + 1}
                         </div>
 
                         {/* Línea vertical */}
@@ -256,7 +271,7 @@ const CustomTreeView = ({
                                  left: "50%",
                                  width: 2,
                                  transform: "translateX(-50%)",
-                                 background: token.line,
+                                 background: shouldShowMessage ? "#FCA5A5" : token.line,
                                  borderRadius: 1
                               }}
                            />
@@ -265,7 +280,6 @@ const CustomTreeView = ({
 
                      {/* Tarjeta de contenido */}
                      <div
-                        // ref={(el) => (cardRefs.current[idx] = el)}
                         tabIndex={0}
                         role="button"
                         aria-label={`Nodo ${idx + 1}: ${name}`}
@@ -280,13 +294,13 @@ const CustomTreeView = ({
                            flex: 1,
                            margin: "2px 0 2px 8px",
                            padding: "8px 12px",
-                           background: token.cardBg,
-                           border: `1px solid ${token.cardBorder}`,
-                           borderLeft: `3px solid ${token.cardAccent}`,
+                           background: shouldShowMessage ? "#FEF2F2" : token.cardBg,
+                           border: `1px solid ${shouldShowMessage ? "#FCA5A5" : token.cardBorder}`,
+                           borderLeft: `3px solid ${shouldShowMessage ? "#DC2626" : token.cardAccent}`,
                            borderRadius: "0 8px 8px 0",
                            cursor: onNodeClick ? "pointer" : "default",
                            transition: "all 0.2s",
-                           boxShadow: focusedIndex === idx ? `0 0 0 2px ${token.cardAccent}` : "0 1px 2px rgba(0,0,0,0.02)",
+                           boxShadow: focusedIndex === idx ? `0 0 0 2px ${shouldShowMessage ? "#DC2626" : token.cardAccent}` : "0 1px 2px rgba(0,0,0,0.02)",
                            outline: "none"
                         }}
                         onMouseEnter={(e) => {
@@ -362,6 +376,28 @@ const CustomTreeView = ({
                                  {currentStatus}
                               </span>
                            )}
+                           {shouldShowMessage && (
+                              <span
+                                 style={{
+                                    fontSize: 9,
+                                    fontWeight: 700,
+                                    letterSpacing: "0.05em",
+                                    textTransform: "uppercase",
+                                    color: "#991B1B",
+                                    background: "#FEE2E2",
+                                    border: "0.5px solid #FCA5A5",
+                                    borderRadius: 4,
+                                    padding: "2px 6px",
+                                    lineHeight: 1,
+                                    display: "flex",
+                                    alignItems: "center",
+                                    gap: 4
+                                 }}
+                              >
+                                 <AlertCircle size={10} />
+                                 {statusMessage}
+                              </span>
+                           )}
                         </div>
 
                         {/* Nombre principal */}
@@ -369,9 +405,10 @@ const CustomTreeView = ({
                            style={{
                               fontSize: 12,
                               fontWeight: 600,
-                              color: token.nameColor,
+                              color: shouldShowMessage ? "#991B1B" : token.nameColor,
                               lineHeight: 1.3,
-                              marginBottom: director && showDirector ? 4 : 0
+                              marginBottom: director && showDirector ? 4 : 0,
+                              textDecoration: shouldShowMessage ? "line-through" : "none"
                            }}
                         >
                            {name}
@@ -382,7 +419,7 @@ const CustomTreeView = ({
                            <div
                               style={{
                                  fontSize: 10,
-                                 color: "#9ca3af",
+                                 color: shouldShowMessage ? "#9CA3AF" : "#9ca3af",
                                  display: "flex",
                                  alignItems: "center",
                                  gap: 4

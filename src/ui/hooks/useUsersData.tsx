@@ -15,7 +15,8 @@ const useUsersData = () => {
          dependence_id: 0,
          active: false,
          payroll: 0,
-         permissions: []
+         permissions: [],
+         signature:null
       }),
       []
    );

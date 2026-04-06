@@ -108,19 +108,18 @@ const FormPageProcedure = ({
    );
 
    const handleSubmit = (rows: Record<string, any>[]) => {
-      console.log("empezamos aqui", procedureData.open, procedureData.constants.startDate);
 
       if (rows.length == 0) {
          return;
       }
 
       const today = new Date().toISOString().split("T")[0]; // Formato YYYY-MM-DD
-
       if (modeTable == "delete") {
          // Modo delete: actualizar status_id a 5 para todas las filas
          const updatedRows = rows.map((row) => ({
             ...(row as Procedure),
-            statu_id: 5
+            errorDescriptionField: null,
+            error: row.errorFieldsKey?true:false
          }));
          procedureData.postItem(updatedRows as Procedure[], false, false).finally(() => {
             procedureCreatedAt.fetchData();
@@ -132,16 +131,20 @@ const FormPageProcedure = ({
             });
          });
       } else {
+             const updatedRows = rows.map((row) => ({
+                ...(row as Procedure),
+                error: modeTable=="editdelete" ? false:row.error
+             }));
          // Modo create u otros: comportamiento normal
-         procedureData.postItem(rows as Procedure[], false, false).finally(() => {
-            procedureCreatedAt.fetchData();
-            const startDate = procedureData.constants.startDate || today;
-            const departamentId = procedureData.constants.departament_id || 0;
-            procedureData.request({
-               method: "GET",
-               url: `procedure/detailsprocedure/${startDate}/${departamentId}`
-            });
-         });
+          procedureData.postItem(updatedRows as Procedure[], false, false).finally(() => {
+             procedureCreatedAt.fetchData();
+             const startDate = procedureData.constants.startDate || today;
+             const departamentId = procedureData.constants.departament_id || 0;
+             procedureData.request({
+                method: "GET",
+                url: `procedure/detailsprocedure/${startDate}/${departamentId}`
+             });
+          });
       }
 
       setEditableRows([]);
@@ -149,13 +152,49 @@ const FormPageProcedure = ({
       tableRef.current?.clearSelection();
    };
 
-type SignatureAction = {
+ type SignatureAction = {
    color: string;
    label: string;
    onClick: () => void;
 } | null;
 
-const signaturePermissionUser = (): SignatureAction => {
+const rewiev = (): SignatureAction => {
+     const stored = localStorage.getItem("permisos");
+     const parsed = stored ? JSON.parse(stored) : [];
+     if (parsed.includes("revisar")) {
+        return {
+           label: "Marcar como revisado",
+           color: "#059669",
+           // icon: <svg>...</svg>,
+           onClick: () => {
+              procedureData
+                 .request({
+                    method: "POST",
+                    url: `procedure/changestatus`,
+                    data: {
+                       status: 3,
+                       startDate: String(procedureData.constants.startDate),
+                       departament_id: procedureData.constants.departament_id
+                    },
+                    getData: false
+                 })
+                 .finally(() => {
+                    procedureData.setOpen();
+                    const today = new Date().toISOString().split("T")[0];
+                    procedureCreatedAt.fetchData();
+                    procedureData.request({
+                       method: "GET",
+                       url: `procedure/detailsprocedure/${procedureData.constants.startDate ?? today}/${procedureData.constants.departament_id}`
+                    });
+                 });
+           }
+        };
+     }
+     return null
+};
+
+
+ const signaturePermissionUser = (): SignatureAction => {
    const authId = localStorage.getItem("auth_id");
    const userName = localStorage.getItem("name");
 
@@ -178,7 +217,6 @@ const signaturePermissionUser = (): SignatureAction => {
                ...prev,
                open:false,
               }))
-               console.log("aqui")
                signatureByUser(userName ?? "");
             });
          }
@@ -200,35 +238,9 @@ const signaturePermissionUser = (): SignatureAction => {
                // ...
             }}
             toolbarActions={
-               modeTable == "delete"
+               modeTable == "view"
                   ? [
-                       {
-                          label: "Marcar como revisado",
-                          color: "#059669",
-                          icon: <svg>...</svg>,
-                          onClick: (rows) => {
-                             procedureData
-                                .request({
-                                   method: "POST",
-                                   url: `procedure/changestatus`,
-                                   data: {
-                                      status: 3,
-                                      startDate: String(procedureData.constants.startDate),
-                                      departament_id: procedureData.constants.departament_id
-                                   },
-                                   getData: false
-                                })
-                                .finally(() => {
-                                   procedureData.setOpen();
-                                   const today = new Date().toISOString().split("T")[0];
-                                   procedureCreatedAt.fetchData();
-                                   procedureData.request({
-                                      method: "GET",
-                                      url: `procedure/detailsprocedure/${procedureData.constants.startDate ?? today}/${procedureData.constants.departament_id}`
-                                   });
-                                });
-                          }
-                       },
+                     rewiev(),
                        signaturePermissionUser()
                     ].filter(Boolean)
                   : []

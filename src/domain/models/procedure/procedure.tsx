@@ -35,7 +35,7 @@ export type Procedure = {
    archiveCode?: string;
    fileNumber?: string;
    observation?: string;
-
+   reviewed_user?:string,
    administrative_value?: boolean;
    accounting_fiscal_value?: boolean;
    legal_value?: boolean;

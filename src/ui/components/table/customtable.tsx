@@ -124,7 +124,7 @@ export interface PropsTable<T extends object> {
    data: T[];
    paginate: number[];
    columns: Column<T>[];
-   headerActions?: () => React.ReactNode;
+   headerActions?: (rows: T[]) => React.ReactNode;
    actions?: (row: T) => React.ReactNode;
    loading?: boolean;
    error?: string;
@@ -2263,7 +2263,7 @@ const CustomTableInner = <T extends object>(
       >
          {/* HEADER */}
          <div style={{ background: C.white, borderBottom: `1px solid ${C.border}`, padding: "16px 20px 14px", flexShrink: 0, position: "relative" }}>
-            {(title || headerActions) && (
+            {(title || headerActions(data)) && (
                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14, flexWrap: "wrap", gap: 10 }}>
                   {title && (
                      <div>
@@ -2289,7 +2289,7 @@ const CustomTableInner = <T extends object>(
                         {subtitle && <p style={{ fontSize: 12, color: C.text3, margin: "3px 0 0" }}>{subtitle}</p>}
                      </div>
                   )}
-                  {headerActions && <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>{headerActions()}</div>}
+                  {headerActions && <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>{headerActions(data)}</div>}
                </div>
             )}
 

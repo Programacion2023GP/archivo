@@ -6,15 +6,47 @@ import ReactDOM from "react-dom";
 ══════════════════════════════════════════════════════════════ */
 
 const PALETTE = {
+   // Reds & Pinks
    ruby: { base: "#9B2242", dark: "#7a1a35", light: "#fceef2", border: "rgba(155,34,66,0.22)", glow: "rgba(155,34,66,0.20)", text: "#fff" },
-   slate: { base: "#3d3d52", dark: "#2d2d3e", light: "#f2f2f6", border: "rgba(61,61,82,0.22)", glow: "rgba(61,61,82,0.18)", text: "#fff" },
-   cyan: { base: "#0891b2", dark: "#0672a0", light: "#ecfeff", border: "rgba(8,145,178,0.22)", glow: "rgba(8,145,178,0.20)", text: "#fff" },
-   purple: { base: "#7c3aed", dark: "#6b2ed4", light: "#f5f3ff", border: "rgba(124,58,237,0.22)", glow: "rgba(124,58,237,0.20)", text: "#fff" },
+   crimson: { base: "#dc2626", dark: "#b91c1c", light: "#fef2f2", border: "rgba(220,38,38,0.22)", glow: "rgba(220,38,38,0.20)", text: "#fff" },
+   rose: { base: "#e11d48", dark: "#be123c", light: "#fff1f2", border: "rgba(225,29,72,0.22)", glow: "rgba(225,29,72,0.20)", text: "#fff" },
    pink: { base: "#db2777", dark: "#be1d68", light: "#fdf2f8", border: "rgba(219,39,119,0.22)", glow: "rgba(219,39,119,0.20)", text: "#fff" },
-   green: { base: "#059669", dark: "#047857", light: "#ecfdf5", border: "rgba(5,150,105,0.22)", glow: "rgba(5,150,105,0.20)", text: "#fff" },
-   red: { base: "#dc2626", dark: "#b91c1c", light: "#fef2f2", border: "rgba(220,38,38,0.22)", glow: "rgba(220,38,38,0.20)", text: "#fff" },
+   fuchsia: { base: "#c026d3", dark: "#a21caf", light: "#fdf4ff", border: "rgba(192,38,211,0.22)", glow: "rgba(192,38,211,0.20)", text: "#fff" },
+
+   // Purples & Violets
+   purple: { base: "#7c3aed", dark: "#6b2ed4", light: "#f5f3ff", border: "rgba(124,58,237,0.22)", glow: "rgba(124,58,237,0.20)", text: "#fff" },
+   violet: { base: "#8b5cf6", dark: "#7c3aed", light: "#f5f3ff", border: "rgba(139,92,246,0.22)", glow: "rgba(139,92,246,0.20)", text: "#fff" },
+   indigo: { base: "#4f46e5", dark: "#4338ca", light: "#eef2ff", border: "rgba(79,70,229,0.22)", glow: "rgba(79,70,229,0.20)", text: "#fff" },
+   lavender: { base: "#a855f7", dark: "#9333ea", light: "#faf5ff", border: "rgba(168,85,247,0.22)", glow: "rgba(168,85,247,0.20)", text: "#fff" },
+
+   // Blues
    blue: { base: "#2563eb", dark: "#1d4ed8", light: "#eff6ff", border: "rgba(37,99,235,0.22)", glow: "rgba(37,99,235,0.20)", text: "#fff" },
-   yellow: { base: "#d97706", dark: "#b45309", light: "#fffbeb", border: "rgba(217,119,6,0.22)", glow: "rgba(217,119,6,0.20)", text: "#1a1a24" }
+   cyan: { base: "#0891b2", dark: "#0672a0", light: "#ecfeff", border: "rgba(8,145,178,0.22)", glow: "rgba(8,145,178,0.20)", text: "#fff" },
+   sky: { base: "#0ea5e9", dark: "#0284c7", light: "#f0f9ff", border: "rgba(14,165,233,0.22)", glow: "rgba(14,165,233,0.20)", text: "#fff" },
+   teal: { base: "#14b8a6", dark: "#0d9488", light: "#f0fdfa", border: "rgba(20,184,166,0.22)", glow: "rgba(20,184,166,0.20)", text: "#fff" },
+   azure: { base: "#0078d4", dark: "#005a9e", light: "#e6f3ff", border: "rgba(0,120,212,0.22)", glow: "rgba(0,120,212,0.20)", text: "#fff" },
+
+   // Greens
+   green: { base: "#059669", dark: "#047857", light: "#ecfdf5", border: "rgba(5,150,105,0.22)", glow: "rgba(5,150,105,0.20)", text: "#fff" },
+   emerald: { base: "#10b981", dark: "#059669", light: "#ecfdf5", border: "rgba(16,185,129,0.22)", glow: "rgba(16,185,129,0.20)", text: "#fff" },
+   lime: { base: "#84cc16", dark: "#65a30d", light: "#f7fee7", border: "rgba(132,204,22,0.22)", glow: "rgba(132,204,22,0.20)", text: "#1a1a24" },
+   mint: { base: "#2dd4bf", dark: "#14b8a6", light: "#f0fdf4", border: "rgba(45,212,191,0.22)", glow: "rgba(45,212,191,0.20)", text: "#1a1a24" },
+   forest: { base: "#166534", dark: "#14532d", light: "#f0fdf4", border: "rgba(22,101,52,0.22)", glow: "rgba(22,101,52,0.20)", text: "#fff" },
+
+   // Yellows & Oranges
+   yellow: { base: "#d97706", dark: "#b45309", light: "#fffbeb", border: "rgba(217,119,6,0.22)", glow: "rgba(217,119,6,0.20)", text: "#1a1a24" },
+   amber: { base: "#f59e0b", dark: "#d97706", light: "#fffbeb", border: "rgba(245,158,11,0.22)", glow: "rgba(245,158,11,0.20)", text: "#1a1a24" },
+   orange: { base: "#ea580c", dark: "#c2410c", light: "#fff7ed", border: "rgba(234,88,12,0.22)", glow: "rgba(234,88,12,0.20)", text: "#fff" },
+   gold: { base: "#ca8a04", dark: "#a16207", light: "#fef9c3", border: "rgba(202,138,4,0.22)", glow: "rgba(202,138,4,0.20)", text: "#1a1a24" },
+   coral: { base: "#f97316", dark: "#ea580c", light: "#fff7ed", border: "rgba(249,115,22,0.22)", glow: "rgba(249,115,22,0.20)", text: "#fff" },
+
+   // Neutrals
+   slate: { base: "#3d3d52", dark: "#2d2d3e", light: "#f2f2f6", border: "rgba(61,61,82,0.22)", glow: "rgba(61,61,82,0.18)", text: "#fff" },
+   gray: { base: "#6b7280", dark: "#4b5563", light: "#f9fafb", border: "rgba(107,114,128,0.22)", glow: "rgba(107,114,128,0.18)", text: "#fff" },
+   zinc: { base: "#71717a", dark: "#52525b", light: "#fafafa", border: "rgba(113,113,122,0.22)", glow: "rgba(113,113,122,0.18)", text: "#fff" },
+   stone: { base: "#78716c", dark: "#57534e", light: "#fafaf9", border: "rgba(120,113,108,0.22)", glow: "rgba(120,113,108,0.18)", text: "#fff" },
+   charcoal: { base: "#1f2937", dark: "#111827", light: "#f3f4f6", border: "rgba(31,41,55,0.22)", glow: "rgba(31,41,55,0.18)", text: "#fff" },
+   warmGray: { base: "#8b7e6e", dark: "#6b5e4e", light: "#fefaf5", border: "rgba(139,126,110,0.22)", glow: "rgba(139,126,110,0.18)", text: "#fff" }
 } as const;
 
 type ColorKey = keyof typeof PALETTE;
@@ -294,18 +326,52 @@ function buildStyle(
 ══════════════════════════════════════════════════════════════ */
 
 const BADGE_MAP: Record<string, { bg: string; text: string }> = {
-   ruby: { bg: PALETTE.ruby.base, text: "#fff" },
-   slate: { bg: PALETTE.slate.base, text: "#fff" },
-   cyan: { bg: PALETTE.cyan.base, text: "#fff" },
-   purple: { bg: PALETTE.purple.base, text: "#fff" },
-   pink: { bg: PALETTE.pink.base, text: "#fff" },
-   green: { bg: PALETTE.green.base, text: "#fff" },
-   red: { bg: PALETTE.red.base, text: "#fff" },
-   blue: { bg: PALETTE.blue.base, text: "#fff" },
-   yellow: { bg: PALETTE.yellow.base, text: "#1a1a24" },
+   // Reds & Pinks
+   ruby: { bg: PALETTE.ruby.base, text: PALETTE.ruby.text },
+   crimson: { bg: PALETTE.crimson.base, text: PALETTE.crimson.text },
+   rose: { bg: PALETTE.rose.base, text: PALETTE.rose.text },
+   pink: { bg: PALETTE.pink.base, text: PALETTE.pink.text },
+   fuchsia: { bg: PALETTE.fuchsia.base, text: PALETTE.fuchsia.text },
+
+   // Purples & Violets
+   purple: { bg: PALETTE.purple.base, text: PALETTE.purple.text },
+   violet: { bg: PALETTE.violet.base, text: PALETTE.violet.text },
+   indigo: { bg: PALETTE.indigo.base, text: PALETTE.indigo.text },
+   lavender: { bg: PALETTE.lavender.base, text: PALETTE.lavender.text },
+
+   // Blues
+   blue: { bg: PALETTE.blue.base, text: PALETTE.blue.text },
+   cyan: { bg: PALETTE.cyan.base, text: PALETTE.cyan.text },
+   sky: { bg: PALETTE.sky.base, text: PALETTE.sky.text },
+   teal: { bg: PALETTE.teal.base, text: PALETTE.teal.text },
+   azure: { bg: PALETTE.azure.base, text: PALETTE.azure.text },
+
+   // Greens
+   green: { bg: PALETTE.green.base, text: PALETTE.green.text },
+   emerald: { bg: PALETTE.emerald.base, text: PALETTE.emerald.text },
+   lime: { bg: PALETTE.lime.base, text: PALETTE.lime.text },
+   mint: { bg: PALETTE.mint.base, text: PALETTE.mint.text },
+   forest: { bg: PALETTE.forest.base, text: PALETTE.forest.text },
+
+   // Yellows & Oranges
+   yellow: { bg: PALETTE.yellow.base, text: PALETTE.yellow.text },
+   amber: { bg: PALETTE.amber.base, text: PALETTE.amber.text },
+   orange: { bg: PALETTE.orange.base, text: PALETTE.orange.text },
+   gold: { bg: PALETTE.gold.base, text: PALETTE.gold.text },
+   coral: { bg: PALETTE.coral.base, text: PALETTE.coral.text },
+
+   // Neutrals
+   slate: { bg: PALETTE.slate.base, text: PALETTE.slate.text },
+   gray: { bg: PALETTE.gray.base, text: PALETTE.gray.text },
+   zinc: { bg: PALETTE.zinc.base, text: PALETTE.zinc.text },
+   stone: { bg: PALETTE.stone.base, text: PALETTE.stone.text },
+   charcoal: { bg: PALETTE.charcoal.base, text: PALETTE.charcoal.text },
+   warmGray: { bg: PALETTE.warmGray.base, text: PALETTE.warmGray.text },
+
+   // Special (keep these for flexibility)
    white: { bg: "#ffffff", text: "#1a1a24" },
-   gray: { bg: "#6b7280", text: "#fff" }
-};
+   black: { bg: "#000000", text: "#ffffff" }
+} as const;
 
 /* ══════════════════════════════════════════════════════════════
    BADGE COMPONENT

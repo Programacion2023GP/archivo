@@ -18,8 +18,8 @@ const useListAutorized = () => {
 
    return useGenericData<ListAutorized>({
       initialState,
-      prefix: "departaments",
-      autoFetch: true
+      prefix: "signature",
+      autoFetch: false
    });
 };
 
