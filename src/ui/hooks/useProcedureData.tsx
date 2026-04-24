@@ -1,6 +1,5 @@
 import { useMemo } from "react";
 import { useGenericData } from "../../hooks/usegenericdata";
-import { Departament } from "../../domain/models/departament/departament";
 import { Procedure } from "../../domain/models/procedure/procedure";
 
 const useProcedureData = () => {

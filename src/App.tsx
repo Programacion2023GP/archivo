@@ -5,13 +5,12 @@ import { useCallback, useEffect, useMemo, useState, lazy, Suspense, useRef } fro
 import { FaUserTie } from "react-icons/fa6";
 import PageLogin from "./ui/pages/login/PageLogin";
 import "./App.css";
-import { FaChartLine, FaCode, FaFileInvoiceDollar, FaUserAlt } from "react-icons/fa";
+import { FaChartLine, FaCode } from "react-icons/fa";
 import { SidebarDrop } from "./ui/components/sidebar/CustomSidebarDrop";
 import { FaBuildingColumns } from "react-icons/fa6";
 import { Routes, Navigate, Outlet, Route, useLocation, useNavigate } from "react-router-dom";
 import { usePermissionsStore } from "./store/menu/menu.store";
 import { FaUserDoctor } from "react-icons/fa6";
-import { FaStopCircle } from "react-icons/fa";
 import Spinner from "./ui/components/loading/loading";
 import { redirectRoute } from "./utils/redirect";
 import { RiFileList3Line } from "react-icons/ri";
@@ -20,7 +19,6 @@ import { RiFileList3Line } from "react-icons/ri";
 const PageUsersPanel = lazy(() => import("./ui/pages/pageusers/pageuserspanel"));
 const PageLogs = lazy(() => import("./ui/pages/pagelogs/PageLogs"));
 const PageDepartaments = lazy(() => import("./ui/pages/catalogues/departaments/pagedepartaments"));
-const PageSender = lazy(() => import("./ui/pages/catalogues/sender/senderpage"));
 const PageProcedure = lazy(() => import("./ui/pages/procedure/pageprocedure"));
 
 const PoliceSearch404 = lazy(() => import("./ui/pages/nofound/PageNoFound"));
@@ -118,7 +116,9 @@ const hasRoute = (item: SidebarItem): item is SidebarItemWithRoute => {
      () => [
         createRouteItem(1, "usuarios_", "/usuarios", <FaUserTie />, "Usuarios"),
         createRouteItem(2, "tramite_", "/tramite", <RiFileList3Line />, "Tramites"),
-       // createRouteItem(2, "tramite_", "/tramite", <RiFileList3Line />, "Tramites"),
+        createRouteItem(3, "tramite_", "/logs", <RiFileList3Line />, "Logs"),
+
+        // createRouteItem(2, "tramite_", "/tramite", <RiFileList3Line />, "Tramites"),
 
         createRouteItem(6, "vista_", "/logs", <FaCode />, "Logs"),
 
@@ -331,14 +331,7 @@ function App() {
                   }
                />
 
-               <Route
-                  path="remitente"
-                  element={
-                     <Suspense fallback={<Spinner />}>
-                        <PageSender />
-                     </Suspense>
-                  }
-               />
+             
             </Route>
             {/* <Route path="reportes">
                <Route

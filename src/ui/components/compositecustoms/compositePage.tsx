@@ -1,4 +1,4 @@
-import { useEffect, useState, type ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 import { AiOutlineClose, AiOutlineExpandAlt } from "react-icons/ai";
 import { motion, AnimatePresence } from "framer-motion";
 import { useWindowSize } from "../../../hooks/windossize";

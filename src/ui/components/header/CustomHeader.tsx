@@ -1,9 +1,8 @@
 // components/header/Header.tsx
 import { useState, useEffect, useRef } from "react";
-import { FaUserCircle, FaBars, FaTimes, FaSignOutAlt } from "react-icons/fa";
 import { useUsersState } from "../../../store/storeusers/users.store";
 import { ApiUsers } from "../../../infrastructure/infrastructureusers/inftrastructureusers";
-import { Bell, ChevronDown, LogOut, Menu, Settings, User, X } from "lucide-react";
+import { ChevronDown, LogOut, Menu, X } from "lucide-react";
 
 interface HeaderProps {
    userName?: string;

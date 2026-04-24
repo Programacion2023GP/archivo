@@ -1,5 +1,5 @@
-import React, { useState, useEffect, ReactElement, useCallback, useRef } from "react";
-import { PDFViewer, PDFDownloadLink, BlobProvider } from "@react-pdf/renderer";
+import React, { useState, useEffect, ReactElement } from "react";
+import { BlobProvider } from "@react-pdf/renderer";
 import Spinner from "../loading/loading";
 
 interface PdfPreviewProps {

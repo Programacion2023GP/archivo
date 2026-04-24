@@ -1,18 +1,16 @@
 import { useEffect, useRef } from "react";
-import { Departament } from "../../../../../domain/models/departament/departament";
-import { Proccess } from "../../../../../domain/models/proccess/proccess.domain";
-import { GenericDataReturn } from "../../../../../hooks/usegenericdata";
 import { RESPONSIVE } from "../../../../../utils/compressfiles";
-import CustomModal from "../../../../components/modal/modal";
 import FormikForm from "../../../../formik/Formik";
 import { FormikInput, FormikTextArea } from "../../../../formik/FormikInputs/FormikInput";
 import { FormikProps, FormikValues } from "formik";
-type TablePageUsersProps = {
-   departaments: GenericDataReturn<Departament>;
-   proccess: GenericDataReturn<Proccess>;
-   proccessValidator: any;
-};
-const FormPageProccess = ({ departaments, proccess, proccessValidator }: TablePageUsersProps) => {
+import useProccessData from "../../../../hooks/useProccessData";
+import { useValidators } from "../../../../validations/validators";
+import useDepartamentsData from "../../../../hooks/useDepartamentsData";
+
+const FormPageProccess = () => {
+      const proccess = useProccessData();
+      const { proccessValidator } = useValidators();
+      const departaments = useDepartamentsData();
    const formikRef = useRef<FormikProps<FormikValues>>(null);
    useEffect(()=>{
       if (formikRef.current) {

@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { AlertCircle, AlertTriangle, Info, CheckCircle, X } from "lucide-react";
+import { AlertCircle, AlertTriangle, Info, CheckCircle } from "lucide-react";
 
 interface SimpleAlertProps {
    type?: "success" | "error" | "warning" | "info";

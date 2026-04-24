@@ -1,8 +1,26 @@
 import { useMemo } from "react";
-import { useGenericData } from "../../hooks/usegenericdata";
+import { GenericDataReturn, useGenericData } from "../../hooks/usegenericdata";
 import { ProceduresCreatedAt } from "../../domain/models/procedurecreatedat/procedure_created_at";
+import { Procedure } from "../../domain/models/procedure/procedure";
 
-const useProcedureCreatedAtData = () => {
+export interface ExtensionProcedureCreatedAt{
+   signatureByUser :(name:string)=>void,
+}
+export interface ProcedureCreatedAtExtraState {
+   modeTable: "create" | "edit" | "view" | "delete" | "editdelete" | "fixerrors";
+   editableRows: Procedure[];
+   openExcel: boolean;
+   signature: string;
+   userSignature:boolean,
+   showModal: boolean;
+   deptoDetails: {
+      open: boolean;
+      name: string;
+   };
+}
+
+export type UsersDataReturn = GenericDataReturn<ProceduresCreatedAt, ExtensionProcedureCreatedAt, {}, ProcedureCreatedAtExtraState>;
+const useProcedureCreatedAtData = () : UsersDataReturn => {
    const initialState = useMemo<ProceduresCreatedAt>(
       () => ({
         id:0,
@@ -20,10 +38,28 @@ const useProcedureCreatedAtData = () => {
       []
    );
 
-   return useGenericData<ProceduresCreatedAt>({
+   return useGenericData<ProceduresCreatedAt, ExtensionProcedureCreatedAt, {}, ProcedureCreatedAtExtraState>({
       initialState,
       prefix: "procedure",
-      autoFetch: true
+      autoFetch: true,
+      debug: true,
+      extraState: {
+         userSignature:null,
+         modeTable: "create",
+         editableRows: [],
+         openExcel: false,
+         signature: null,
+         showModal: false,
+         deptoDetails: {
+            open: false,
+            name: null
+         }
+      },
+      extension: (set, get, prefix) => ({
+         signatureByUser:(name) =>{
+            set({ signature :name,showModal:true});
+         },
+      })
    });
 };
 

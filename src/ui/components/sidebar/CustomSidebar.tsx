@@ -1,5 +1,4 @@
 // components/sidebar/Sidebar.tsx
-import { Settings } from "lucide-react";
 import { type ReactNode } from "react";
 
 interface SidebarProps {

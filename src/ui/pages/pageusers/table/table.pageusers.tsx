@@ -5,19 +5,17 @@ import Tooltip from "../../../components/toltip/Toltip";
 import { LuImagePlus, LuRefreshCcw } from "react-icons/lu";
 import { showConfirmationAlert, showToast } from "../../../../sweetalert/Sweetalert";
 import { FaSync, FaTrash } from "react-icons/fa";
-import { GenericDataReturn } from "../../../../hooks/usegenericdata";
-import { Permissions, Users } from "../../../../domain/models/users/users.domain";
 import { CiEdit } from "react-icons/ci";
 import { PermissionRoute } from "../../../../App";
 import PhotoZoom from "../../../components/images/images";
+import useUsersData from "../../../hooks/useUsersData";
+import usePermissionsData from "../../../hooks/usePermissionsData";
+import CustomButtonCrement from "../components/users.button";
 
-type TablePageUsersProps = {
-   usersData: GenericDataReturn<Users>;
-   permissionsData: GenericDataReturn<Permissions>;
-};
+const TablePageUsers = () => {
+   const users = useUsersData();
+   const permissions = usePermissionsData();
 
-const TablePageUsers = ({ usersData,permissionsData }: TablePageUsersProps) => {
-   console.log(usersData.items);
    return (
       <CustomTable
          headerActions={() => (
@@ -26,7 +24,7 @@ const TablePageUsers = ({ usersData,permissionsData }: TablePageUsersProps) => {
                   <Tooltip content="Agregar usuario">
                      <CustomButton
                         onClick={() => {
-                           usersData.setOpen();
+                           users.setOpen();
                         }}
                      >
                         <VscDiffAdded />
@@ -38,7 +36,7 @@ const TablePageUsers = ({ usersData,permissionsData }: TablePageUsersProps) => {
                      <CustomButton
                         color="purple"
                         onClick={() => {
-                           usersData.fetchData();
+                           users.fetchData();
                         }}
                      >
                         {" "}
@@ -48,10 +46,10 @@ const TablePageUsers = ({ usersData,permissionsData }: TablePageUsersProps) => {
                </PermissionRoute>
             </>
          )}
-         data={usersData.items}
+         data={users.items}
          conditionExcel={"usuarios_ver"}
          paginate={[10, 25, 50]}
-         loading={usersData.loading}
+         loading={users.loading}
          columns={[
             {
                field: "payroll",
@@ -64,7 +62,7 @@ const TablePageUsers = ({ usersData,permissionsData }: TablePageUsersProps) => {
             {
                field: "signature",
                headerName: "Firma",
-               renderField: (v,row) => <PhotoZoom alt={row.fullName as string} src={v as string}/>
+               renderField: (v, row) => <PhotoZoom alt={row.fullName as string} src={v as string} />
             },
             {
                field: "departament",
@@ -85,8 +83,8 @@ const TablePageUsers = ({ usersData,permissionsData }: TablePageUsersProps) => {
                               size="sm"
                               color="yellow"
                               onClick={() => {
-                                 usersData.setOpen();
-                                 usersData.handleChangeItem(row);
+                                 users.setOpen();
+                                 users.handleChangeItem(row);
                               }}
                            >
                               <CiEdit />
@@ -103,7 +101,7 @@ const TablePageUsers = ({ usersData,permissionsData }: TablePageUsersProps) => {
                                     showConfirmationAlert(`Eliminar`, {
                                        text: "Se desactiva el usuario"
                                     }).then((isConfirmed) => {
-                                       if (isConfirmed) usersData.removeItemData(row);
+                                       if (isConfirmed) users.removeItemData(row);
                                        else showToast("La acción fue cancelada.", "error");
                                     });
                                  }}
@@ -118,13 +116,27 @@ const TablePageUsers = ({ usersData,permissionsData }: TablePageUsersProps) => {
                                  size="sm"
                                  color="lime"
                                  onClick={() => {
-                                    usersData.setConstant("id", row.id);
-                                    permissionsData.setOpen();
+                                    users.setExtra("user_id", row.id);
+
+                                    permissions.setOpen();
                                  }}
                               >
                                  <LuImagePlus />
                               </CustomButton>
                            </Tooltip>
+                           {row.signature && (
+                              <Tooltip content="Posición de la firma">
+                                 <CustomButtonCrement
+                                    // variant=""
+                                    initialValue={row.signature_position}
+                                    debounceMs={500}
+                                    label="Posicion de la firma obligatoria"
+                                    onSubmit={(v) => {
+                                       users.firmedForzed(row.id, v);
+                                    }}
+                                 />
+                              </Tooltip>
+                           )}
                         </PermissionRoute>
                      </>
                   </>
@@ -137,7 +149,7 @@ const TablePageUsers = ({ usersData,permissionsData }: TablePageUsersProps) => {
                            showConfirmationAlert(`Reactivar`, {
                               text: "Se reactivará el usuario"
                            }).then((isConfirmed) => {
-                              if (isConfirmed) usersData.removeItemData(row);
+                              if (isConfirmed) users.removeItemData(row);
                               else showToast("La acción fue cancelada.", "error");
                            });
                         }}

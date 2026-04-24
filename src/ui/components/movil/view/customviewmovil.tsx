@@ -1,21 +1,6 @@
 import React from "react";
 import {
-   FiCalendar,
-   FiDollarSign,
-   FiUser,
-   FiMapPin,
-   FiPhone,
-   FiCreditCard,
-   FiAlertCircle,
-   FiFileText,
-   FiClock,
-   FiMail,
-   FiHome,
-   FiStar,
-   FiTag,
-   FiPercent,
-   FiBox,
-   FiDroplet // Asegúrate de importar FiDroplet para el icono de color
+   FiFileText // Asegúrate de importar FiDroplet para el icono de color
 } from "react-icons/fi";
 
 // Tipos para la configuración

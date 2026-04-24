@@ -16,7 +16,6 @@ import {
    FiColumns,
    FiMaximize2,
    FiMinimize2,
-   FiCopy,
    FiCheck,
    FiBookmark,
    FiPrinter,

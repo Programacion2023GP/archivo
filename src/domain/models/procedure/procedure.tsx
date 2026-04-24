@@ -7,6 +7,7 @@ export type Procedure = {
    departament_id: number;
    proccess_id?: number;
    status?: number | string;
+   statu_id?: number;
 
    process?: string;
    at: number;
@@ -35,7 +36,7 @@ export type Procedure = {
    archiveCode?: string;
    fileNumber?: string;
    observation?: string;
-   reviewed_user?:string,
+   reviewed_user?: string;
    administrative_value?: boolean;
    accounting_fiscal_value?: boolean;
    legal_value?: boolean;

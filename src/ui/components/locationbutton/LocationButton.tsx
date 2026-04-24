@@ -1,7 +1,5 @@
 import React, { useState, useEffect } from "react";
 import { useFormikContext } from "formik";
-import L from "leaflet";
-import { MapContainer, TileLayer, Marker, Popup } from "react-leaflet";
 
 // // Ícono personalizado para Leaflet
 // const markerIcon = new L.Icon({

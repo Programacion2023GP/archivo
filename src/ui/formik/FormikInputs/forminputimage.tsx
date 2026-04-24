@@ -3,7 +3,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 
 /* ─────────────────────────────────────────────────────────────────
-   DESIGN TOKENS — alineados con el DS existente
+   DESIGN TOKENS (sin cambios)
 ───────────────────────────────────────────────────────────────── */
 const DS = {
    bg: "#FAFAF9",
@@ -40,7 +40,7 @@ const DS = {
 };
 
 /* ─────────────────────────────────────────────────────────────────
-   TIPOS DE ARCHIVO — configuraciones predefinidas
+   TIPOS DE ARCHIVO (sin cambios)
 ───────────────────────────────────────────────────────────────── */
 export type FilePreset = "images" | "documents" | "spreadsheets" | "presentations" | "videos" | "audio" | "archives" | "code" | "all";
 
@@ -196,10 +196,99 @@ const getStatusColor = (status: FileStatus) => {
 };
 
 /* ─────────────────────────────────────────────────────────────────
-   SUBCOMPONENTES
+   🆕 COMPRESIÓN DE IMÁGENES (canvas)
 ───────────────────────────────────────────────────────────────── */
+interface CompressionOptions {
+   maxWidth?: number;
+   maxHeight?: number;
+   quality?: number; // 0 - 1
+   maxSizeMB?: number; // opcional: si se especifica, se ajusta la calidad iterativamente
+}
 
-// Barra de progreso
+/**
+ * Comprime una imagen usando canvas.
+ * @param file Archivo de imagen original
+ * @param options Opciones de compresión
+ * @returns Promise<File> con la imagen comprimida (o el original si falla)
+ */
+const compressImage = async (file: File, options: CompressionOptions = {}): Promise<File> => {
+   const { maxWidth = 1920, maxHeight = 1920, quality = 0.8, maxSizeMB } = options;
+
+   // Solo procesar imágenes
+   if (!file.type.startsWith("image/")) return file;
+
+   return new Promise((resolve) => {
+      const reader = new FileReader();
+      reader.readAsDataURL(file);
+      reader.onload = (e) => {
+         const img = new Image();
+         img.src = e.target?.result as string;
+         img.onload = () => {
+            let width = img.width;
+            let height = img.height;
+
+            // Redimensionar si excede los límites
+            if (width > maxWidth || height > maxHeight) {
+               const ratio = Math.min(maxWidth / width, maxHeight / height);
+               width = Math.round(width * ratio);
+               height = Math.round(height * ratio);
+            }
+
+            const canvas = document.createElement("canvas");
+            canvas.width = width;
+            canvas.height = height;
+            const ctx = canvas.getContext("2d");
+            ctx?.drawImage(img, 0, 0, width, height);
+
+            // Función para obtener blob con calidad dada
+            const getBlob = (q: number): Promise<Blob | null> => {
+               return new Promise((res) => {
+                  canvas.toBlob((blob) => res(blob), file.type, q);
+               });
+            };
+
+            (async () => {
+               let finalQuality = quality;
+               let blob = await getBlob(finalQuality);
+
+               // Si se especifica maxSizeMB y el blob lo supera, reducimos calidad iterativamente
+               if (maxSizeMB && blob && blob.size > maxSizeMB * 1024 * 1024) {
+                  let low = 0.3;
+                  let high = quality;
+                  for (let i = 0; i < 5; i++) {
+                     const mid = (low + high) / 2;
+                     const testBlob = await getBlob(mid);
+                     if (testBlob && testBlob.size <= maxSizeMB * 1024 * 1024) {
+                        high = mid;
+                        blob = testBlob;
+                     } else {
+                        low = mid;
+                     }
+                  }
+                  finalQuality = high;
+               }
+
+               if (blob) {
+                  const compressedFile = new File([blob], file.name, {
+                     type: file.type,
+                     lastModified: Date.now()
+                  });
+                  resolve(compressedFile);
+               } else {
+                  // Fallback: devolver original
+                  resolve(file);
+               }
+            })();
+         };
+         img.onerror = () => resolve(file);
+      };
+      reader.onerror = () => resolve(file);
+   });
+};
+
+/* ─────────────────────────────────────────────────────────────────
+   SUBCOMPONENTES (sin cambios)
+───────────────────────────────────────────────────────────────── */
 const ProgressBar = ({ progress, status }: { progress: number; status: FileStatus }) => {
    const color = status === "error" ? DS.errorText : status === "success" ? DS.successText : DS.accent;
 
@@ -228,7 +317,6 @@ const ProgressBar = ({ progress, status }: { progress: number; status: FileStatu
    );
 };
 
-// Badge de extensión
 const ExtBadge = ({ ext, color, colorLight }: { ext: string; color: string; colorLight: string }) => (
    <span
       style={{
@@ -250,7 +338,6 @@ const ExtBadge = ({ ext, color, colorLight }: { ext: string; color: string; colo
    </span>
 );
 
-// Ícono de estado
 const StatusIcon = ({ status }: { status: FileStatus }) => {
    if (status === "loading") {
       return (
@@ -293,7 +380,7 @@ const StatusIcon = ({ status }: { status: FileStatus }) => {
 };
 
 /* ─────────────────────────────────────────────────────────────────
-   FORMIK FILE INPUT — PROPS
+   FORMIK FILE INPUT — PROPS (con opciones de compresión)
 ───────────────────────────────────────────────────────────────── */
 export interface FormikFileInputProps {
    /** Nombre del campo en Formik */
@@ -324,9 +411,21 @@ export interface FormikFileInputProps {
    onFilesChange?: (files: File[]) => void;
    /** Simular progreso de carga (ms) — 0 = inmediato */
    simulateLoadMs?: number;
-   /** Columnas responsivas */
+   /** Columnas responsivas (no implementado en este ejemplo) */
    responsive?: { sm?: number; md?: number; lg?: number; xl?: number };
    padding?: boolean;
+
+   // 🆕 Opciones de compresión de imágenes
+   /** Si debe comprimir automáticamente las imágenes (por defecto true) */
+   compressImages?: boolean;
+   /** Ancho máximo después de compresión (por defecto 1920) */
+   imageMaxWidth?: number;
+   /** Alto máximo después de compresión (por defecto 1920) */
+   imageMaxHeight?: number;
+   /** Calidad de compresión 0-1 (por defecto 0.8) */
+   imageQuality?: number;
+   /** Tamaño máximo final en MB para la imagen comprimida (opcional, ajusta calidad iterativamente) */
+   imageMaxSizeMB?: number;
 }
 
 /* ─────────────────────────────────────────────────────────────────
@@ -346,7 +445,12 @@ export const FormikFileInput: React.FC<FormikFileInputProps> = ({
    compact = false,
    hint,
    onFilesChange,
-   simulateLoadMs = 800
+   simulateLoadMs = 800,
+   compressImages = true,
+   imageMaxWidth = 1920,
+   imageMaxHeight = 1920,
+   imageQuality = 0.8,
+   imageMaxSizeMB
 }) => {
    const formik = useFormikContext<any>();
    const inputRef = useRef<HTMLInputElement>(null);
@@ -386,20 +490,9 @@ export const FormikFileInput: React.FC<FormikFileInputProps> = ({
 
    // Error de Formik
    const touched = (formik.touched as any)[name];
-   
-const errorMsg = touched && (formik.errors as any)[name] ? String((formik.errors as any)[name]) : null;
-console.log("a",errorMsg)
-   // Sincronizar con valor inicial de Formik
-   useEffect(() => {
-      const current = formik.values[name];
-      if (!current) {
-         setEntries([]);
-         return;
-      }
-      // Si ya hay entradas no re-inicializamos (evita loop)
-   }, []);
+   const errorMsg = touched && (formik.errors as any)[name] ? String((formik.errors as any)[name]) : null;
 
-   // Notificar a Formik
+   // Sincronizar con Formik
    const syncFormik = useCallback(
       (newEntries: FileEntry[]) => {
          const validFiles = newEntries.filter((e) => e.status !== "error").map((e) => e.file);
@@ -409,7 +502,7 @@ console.log("a",errorMsg)
       [name, effectiveMultiple, onFilesChange, formik]
    );
 
-   // Validar un archivo
+   // Validar un archivo (tamaño y extensión)
    const validateFile = useCallback(
       (file: File): string | null => {
          const ext = getFileExtension(file.name);
@@ -430,19 +523,40 @@ console.log("a",errorMsg)
       [effectiveAccept, allExtensions, effectiveMaxMB]
    );
 
-   // Procesar archivos
+   // 🆕 Procesar archivos con compresión asíncrona
    const processFiles = useCallback(
-      (files: File[]) => {
+      async (files: File[]) => {
          const slots = effectiveMultiple ? maxFiles - entries.filter((e) => e.status !== "error").length : 1;
          const incoming = files.slice(0, Math.max(slots, 0));
-
          if (incoming.length === 0) return;
 
-         const newEntries: FileEntry[] = incoming.map((file) => {
+         // Comprimir imágenes si está habilitado
+         const processedFiles = await Promise.all(
+            incoming.map(async (file) => {
+               if (compressImages && isImageFile(file)) {
+                  try {
+                     const compressed = await compressImage(file, {
+                        maxWidth: imageMaxWidth,
+                        maxHeight: imageMaxHeight,
+                        quality: imageQuality,
+                        maxSizeMB: imageMaxSizeMB
+                     });
+                     return compressed;
+                  } catch (err) {
+                     console.warn("Error comprimiendo imagen, se usará original", err);
+                     return file;
+                  }
+               }
+               return file;
+            })
+         );
+
+         // Crear entradas después de la compresión
+         const newEntries: FileEntry[] = processedFiles.map((file) => {
             const valError = validateFile(file);
             const isImg = isImageFile(file);
             return {
-               id: `${Date.now()}-${Math.random().toString(36).slice(2)}`,
+               id: `${Date.now()}-${Math.random().toString(36).slice(2)}-${file.name}`,
                file,
                status: valError ? "error" : simulateLoadMs > 0 ? "loading" : "success",
                progress: valError ? 100 : 0,
@@ -458,7 +572,7 @@ console.log("a",errorMsg)
             return updated;
          });
 
-         // Simular progreso
+         // Simular progreso si corresponde
          if (simulateLoadMs > 0) {
             newEntries.forEach((entry) => {
                if (entry.status === "error") return;
@@ -472,7 +586,7 @@ console.log("a",errorMsg)
             });
          }
       },
-      [entries, effectiveMultiple, maxFiles, simulateLoadMs, validateFile, syncFormik]
+      [entries, effectiveMultiple, maxFiles, simulateLoadMs, validateFile, syncFormik, compressImages, imageMaxWidth, imageMaxHeight, imageQuality, imageMaxSizeMB]
    );
 
    // Eliminar entrada
@@ -515,26 +629,24 @@ console.log("a",errorMsg)
    const handleDragOver = (e: React.DragEvent) => {
       e.preventDefault();
    };
-   const handleDrop = (e: React.DragEvent) => {
+   const handleDrop = async (e: React.DragEvent) => {
       e.preventDefault();
       setIsDragging(false);
       setDragCount(0);
       const files = Array.from(e.dataTransfer.files);
-      processFiles(files);
+      await processFiles(files);
       formik.setFieldTouched(name, true, false);
    };
 
    // Input change
-   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+   const handleInputChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
       const files = Array.from(e.target.files ?? []);
-      processFiles(files);
+      await processFiles(files);
       formik.setFieldTouched(name, true, false);
       if (inputRef.current) inputRef.current.value = "";
    };
 
-   // Estados calculados
    const canAddMore = effectiveMultiple ? entries.filter((e) => e.status !== "error").length < maxFiles : entries.length === 0;
-
    const successCount = entries.filter((e) => e.status === "success").length;
    const hasErrors = entries.some((e) => e.status === "error");
 
@@ -546,7 +658,7 @@ console.log("a",errorMsg)
             boxSizing: "border-box"
          }}
       >
-         {/* ── Header ── */}
+         {/* Header (sin cambios) */}
          <div
             style={{
                display: "flex",
@@ -629,7 +741,7 @@ console.log("a",errorMsg)
             </div>
          </div>
 
-         {/* ── Tipos permitidos (expandible) ── */}
+         {/* Tipos permitidos expandible (sin cambios) */}
          <AnimatePresence>
             {showAllowed && (
                <motion.div
@@ -681,13 +793,18 @@ console.log("a",errorMsg)
                               Selección <strong style={{ color: DS.text2 }}>múltiple habilitada</strong>
                            </span>
                         )}
+                        {compressImages && (
+                           <span style={{ fontSize: 12, color: DS.text3 }}>
+                              🖼️ Compresión activa (máx. {imageMaxWidth}x{imageMaxHeight})
+                           </span>
+                        )}
                      </div>
                   </div>
                </motion.div>
             )}
          </AnimatePresence>
 
-         {/* ── Zona de drop ── */}
+         {/* Zona de drop (sin cambios visuales, pero ahora con compresión) */}
          {!disabled && canAddMore && (
             <div
                ref={dropRef}
@@ -766,6 +883,7 @@ console.log("a",errorMsg)
                      {allExtensions.includes("*")
                         ? `Cualquier formato · máx. ${effectiveMaxMB} MB`
                         : `.${allExtensions.slice(0, 5).join(" · .")}${allExtensions.length > 5 ? ` · +${allExtensions.length - 5} más` : ""} · máx. ${effectiveMaxMB} MB`}
+                     {compressImages && " · Las imágenes se comprimirán automáticamente"}
                   </p>
                )}
             </div>
@@ -790,7 +908,7 @@ console.log("a",errorMsg)
             </div>
          )}
 
-         {/* ── Lista de archivos ── */}
+         {/* Lista de archivos (sin cambios visuales) */}
          <AnimatePresence mode="popLayout">
             {entries.length > 0 && (
                <motion.div
@@ -952,7 +1070,7 @@ console.log("a",errorMsg)
             )}
          </AnimatePresence>
 
-         {/* ── Error Formik ── */}
+         {/* Error Formik */}
          <AnimatePresence>
             {errorMsg && (
                <motion.div
@@ -979,7 +1097,7 @@ console.log("a",errorMsg)
             )}
          </AnimatePresence>
 
-         {/* ── Hint ── */}
+         {/* Hint */}
          {hint && (
             <p
                style={{
@@ -994,7 +1112,7 @@ console.log("a",errorMsg)
             </p>
          )}
 
-         {/* ── Input oculto ── */}
+         {/* Input oculto */}
          <input
             ref={inputRef}
             type="file"
@@ -1007,7 +1125,7 @@ console.log("a",errorMsg)
             aria-label={label}
          />
 
-         {/* ── Modal de preview ── */}
+         {/* Modal de preview */}
          <AnimatePresence>
             {previewModal && (
                <motion.div
@@ -1073,7 +1191,6 @@ console.log("a",errorMsg)
             )}
          </AnimatePresence>
 
-         {/* CSS inyectado una vez */}
          <style>{`
             @keyframes spin { to { transform: rotate(360deg); } }
          `}</style>

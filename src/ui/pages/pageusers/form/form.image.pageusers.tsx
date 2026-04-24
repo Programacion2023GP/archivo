@@ -1,32 +1,29 @@
-import { useEffect } from "react";
-import { Permissions, Users } from "../../../../domain/models/users/users.domain";
-import { GenericDataReturn } from "../../../../hooks/usegenericdata";
 import FormikForm from "../../../formik/Formik";
 import FormikFileInput from "../../../formik/FormikInputs/forminputimage";
 import { useValidators } from "../../../validations/validators";
+import useUsersData from "../../../hooks/useUsersData";
+import usePermissionsData from "../../../hooks/usePermissionsData";
 
-interface imageInput {
-   usersData: GenericDataReturn<Users>;
-    permissionsData: GenericDataReturn<Permissions>;
-   
-}
 
-const FormImagePageUsers = ({ usersData, permissionsData }: imageInput) => {
+
+const FormImagePageUsers = () => {
    const { usersImageValidator } = useValidators();
+    const users = useUsersData();
+    const permissions = usePermissionsData();
    const Submit = (values) => {
-      usersData
+      users
          .request({
             method: "POST",
             url: `users/signature`,
             data: {
                signature: values?.signature,
-               id: usersData.constants.id
+               id: users.user_id
             },
             formData: true,
             getData:true
          })
          .finally(() => {
-            permissionsData.setOpen()
+            permissions.setOpen();
          });
    };
    return (
@@ -34,7 +31,7 @@ const FormImagePageUsers = ({ usersData, permissionsData }: imageInput) => {
          onSubmit={Submit}
          validationSchema={usersImageValidator}
          buttonMessage={"Registrar"}
-         initialValues={usersData.initialValues}
+         initialValues={users.initialValues}
          children={(values, setFieldValue, setTouched, errors, touched) => (
             <>
                <FormikFileInput
@@ -43,7 +40,10 @@ const FormImagePageUsers = ({ usersData, permissionsData }: imageInput) => {
                   preset="images"
                   multiple={false} // ← Cambiado a false porque maxFiles={1}
                   maxFiles={1}
-                  hint="imagen de hasta 2 MB"
+                  compressImages
+                  imageMaxWidth={1200}
+                  imageQuality={0.7}
+                  imageMaxSizeMB={1}
                />
             </>
          )}

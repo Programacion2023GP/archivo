@@ -8,20 +8,19 @@ import { VscDiffAdded } from "react-icons/vsc";
 import { IoReload } from "react-icons/io5";
 import { FaCheck } from "react-icons/fa";
 import { HiX } from "react-icons/hi";
-import { GenericDataReturn } from "../../../../../hooks/usegenericdata";
 import Tooltip from "../../../../components/toltip/Toltip";
 import { PermissionRoute } from "../../../../../App";
 import { IoIosDocument } from "react-icons/io";
-import { FaToggleOn, FaToggleOff } from "react-icons/fa";
-import { Dispatch, SetStateAction } from "react";
 import { CiEdit } from "react-icons/ci";
+import useDepartamentsData from "../../../../hooks/useDepartamentsData";
+import useProccessData from "../../../../hooks/useProccessData";
 
-type TablePageUsersProps = {
-   departaments: GenericDataReturn<Departament>;
-   setOpen: Dispatch<SetStateAction<void>>;
-};
-const TablePageDepartaments = ({ departaments,setOpen }: TablePageUsersProps) => {
-  
+
+const TablePageDepartaments = () => {
+     const departaments = useDepartamentsData();
+     const process = useProccessData();
+     
+
    return (
       <CustomTable
          headerActions={() => (
@@ -120,12 +119,12 @@ const TablePageDepartaments = ({ departaments,setOpen }: TablePageUsersProps) =>
                <Tooltip content={`Tramites de ${row.name}`}>
                   <CustomButton
                      onClick={() => {
-                        
-                        departaments.handleChangeItem({
-                           ...row
-                        });
-                        
-                        setOpen();
+                        process.fetchById(row.id);
+                        // departaments.handleChangeItem({
+                        //    ...row
+                        // });
+                         
+                        departaments.setProcedureOpen();
                      }}
                      color="purple"
                      variant="solid"
@@ -207,7 +206,7 @@ const TablePageDepartaments = ({ departaments,setOpen }: TablePageUsersProps) =>
                               }
                            });
                         }}
-                        color="red"
+                        color="ruby"
                         variant="solid"
                         icon={<TfiTrash />}
                      />

@@ -630,7 +630,7 @@ const AdvancedAnalyticsDashboard = ({ data = SAMPLE_DATA, fieldLabels = SAMPLE_L
   const processChartData = (config: ChartConfig) => {
      if (!config.xAxis || !data || data.length === 0) return [];
 
-     let filteredData = applyFilters(data, config.filters);
+     const filteredData = applyFilters(data, config.filters);
      const groupedData: { [key: string]: any[] } = {};
 
      filteredData.forEach((item) => {

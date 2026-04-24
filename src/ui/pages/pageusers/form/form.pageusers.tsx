@@ -1,32 +1,34 @@
-import { Departament } from "../../../../domain/models/departament/departament";
-import { Permissions, Users } from "../../../../domain/models/users/users.domain";
-import { GenericDataReturn } from "../../../../hooks/usegenericdata";
+import { Users } from "../../../../domain/models/users/users.domain";
 import { RESPONSIVE } from "../../../../utils/compressfiles";
 import FTransferList from "../../../components/transferlist/TransferList";
 import FormikForm from "../../../formik/Formik";
-import { FormikAutocomplete, FormikInput } from "../../../formik/FormikInputs/FormikInput";
+import { FormikAutocomplete, FormikInput, HandleModifiedFn } from "../../../formik/FormikInputs/FormikInput";
+import useDepartamentsData from "../../../hooks/useDepartamentsData";
+import usePermissionsData from "../../../hooks/usePermissionsData";
+import useUsersData from "../../../hooks/useUsersData";
 type FormPageUsersProps = {
-   usersData: GenericDataReturn<Users>;
-   permissionsData: GenericDataReturn<Permissions>;
-   departamentsData: GenericDataReturn<Departament>;
    validationSchema: any;
-   getEmployed: (values: Record<string, any>, setFieldValue: (name: string, value: any) => void) => void;
+   getEmployed?: HandleModifiedFn; // ✅ el ? lo hace opcional, sin valor default
 };
-const FormPageUsers = ({ usersData,permissionsData,validationSchema,getEmployed,departamentsData}: FormPageUsersProps) => {
+const FormPageUsers = ({validationSchema,getEmployed}: FormPageUsersProps) => {
+    const users = useUsersData();
+    const permissions = usePermissionsData();
+    const departaments = useDepartamentsData();
+
    return (
       <div className="pt-4">
          <FormikForm
             validationSchema={validationSchema}
-            buttonMessage={usersData.initialValues.id > 0 ? "Actualizar" : "Registrar"}
-            initialValues={usersData.initialValues}
+            buttonMessage={users.initialValues.id > 0 ? "Actualizar" : "Registrar"}
+            initialValues={users.initialValues}
             children={(values, setFieldValue, setTouched, errors, touched) => (
                <>
-                  <FormikInput name="payroll" label="Nomina" handleModified={getEmployed} responsive={RESPONSIVE} />
+                  <FormikInput name="payroll" label="Nómina" handleModified={getEmployed} responsive={RESPONSIVE} />{" "}
                   <FormikAutocomplete
                      label="Departamento"
                      name="departament_id"
-                     options={departamentsData.items}
-                     loading={departamentsData.loading}
+                     options={departaments.items}
+                     loading={departaments.loading}
                      responsive={RESPONSIVE}
                      idKey="id"
                      labelKey="name"
@@ -56,14 +58,14 @@ const FormPageUsers = ({ usersData,permissionsData,validationSchema,getEmployed,
                      idKey="id"
                      labelKey="name"
                   />
-                  <FormikInput name="firstName" label="Nombre"  responsive={RESPONSIVE} />
-                  <FormikInput name="paternalSurname" label="Apellido Paterno"  responsive={RESPONSIVE} />
-                  <FormikInput name="maternalSurname" label="Apellido Materno"  responsive={RESPONSIVE} />
-                  <FTransferList name="permissions" label="Asignar Permissos" departamentos={permissionsData.items} idKey="id" labelKey="name" />
+                  <FormikInput name="firstName" label="Nombre" responsive={RESPONSIVE} />
+                  <FormikInput name="paternalSurname" label="Apellido Paterno" responsive={RESPONSIVE} />
+                  <FormikInput name="maternalSurname" label="Apellido Materno" responsive={RESPONSIVE} />
+                  <FTransferList name="permissions" label="Asignar Permissos" departamentos={permissions.items} idKey="id" labelKey="name" />
                </>
             )}
             onSubmit={(values) => {
-               usersData.postItem(values as Users);
+               users.postItem(values as Users);
             }}
          />
       </div>

@@ -4,23 +4,14 @@ import { useState, useMemo, useCallback, useEffect } from "react";
 import {
    MapPin,
    AlertTriangle,
-   Calendar,
-   Clock,
-   Droplet,
-   User,
    X,
    ChevronRight,
    BarChart3,
-   TrendingUp,
    Shield,
    Navigation,
-   FileText,
-   Download,
-   Share2,
    Filter,
    Search,
-   Menu,
-   ChevronLeft
+   Menu
 } from "lucide-react";
 
 // Definir interfaces TypeScript

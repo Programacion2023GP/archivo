@@ -1,43 +1,19 @@
 // FormPageProcedure.tsx
-import { useMemo, useEffect, Dispatch, SetStateAction, RefObject } from "react";
+import { useMemo, useEffect } from "react";
 import useProccessData from "../../../hooks/useProccessData";
-import FormTable, { ColumnDef, FormTableHandle } from "../../../formik/FormikInputs/formiktable";
-import { GenericDataReturn } from "../../../../hooks/usegenericdata";
+import FormTable, { ColumnDef } from "../../../formik/FormikInputs/formiktable";
 import { Procedure } from "../../../../domain/models/procedure/procedure";
-import { CustomTableHandle } from "../../../components/table/customtable";
-import { Departament } from "../../../../domain/models/departament/departament";
-import { ProceduresCreatedAt } from "../../../../domain/models/procedurecreatedat/procedure_created_at";
 import { accessCreateProcedure } from "../utils/utils.pageprocedure";
+import useProcedureCreatedAtData from "../../../hooks/useProcedureCreatedAt";
+import useProcedureData from "../../../hooks/useProcedureData";
 
-type TablePageProceudreProps = {
-   procedureData: GenericDataReturn<Procedure>;
-   departamentsData: GenericDataReturn<Departament>;
-   editableRows: Procedure[];
-   signatureByUser: Dispatch<SetStateAction<string>>;
-   setEditableRows: Dispatch<SetStateAction<Procedure[]>>;
-   tableRef: RefObject<CustomTableHandle<Procedure>>;
-   modeTable: "create" | "edit" | "view" | "delete" | "editdelete";
-   setModeTable: Dispatch<SetStateAction<"create" | "edit" | "view" | "delete" | "editdelete">>;
-   procedureCreatedAt: GenericDataReturn<ProceduresCreatedAt>;
-   setDeptoDetails: Dispatch<SetStateAction<{ open: boolean; name: string }>>;
-};
-
-const FormPageProcedure = ({
-   procedureData,
-   editableRows,
-   setEditableRows,
-   tableRef,
-   departamentsData,
-   procedureCreatedAt,
-   modeTable,
-   setModeTable,
-   signatureByUser,
-   setDeptoDetails
-}: TablePageProceudreProps) => {
-   const { items, request } = useProccessData();
+const FormPageProcedure = () => {
+   const proccess = useProccessData();
+   const procedureCreatedAt = useProcedureCreatedAtData();
+   const procedure = useProcedureData();
 
    useEffect(() => {
-      request({ method: "GET", url: `proccess/processbyuser` });
+      proccess.request({ method: "GET", url: `proccess/processbyuser` });
    }, []);
 
    const COLS = useMemo<ColumnDef[]>(
@@ -48,14 +24,14 @@ const FormPageProcedure = ({
             headerName: "Título expediente",
             width: 220,
             type: "autocomplete",
-            options: items,
+            options: proccess.items,
             idKey: "id",
             labelKey: "name",
             selectableKey: "selectable",
             required: true,
             onChange(value, ctx) {
                // ctx.setField('');
-               if (!accessCreateProcedure(procedureCreatedAt.items, items, value)) {
+               if (!accessCreateProcedure(procedureCreatedAt.items, proccess.items, value)) {
                   ctx.setField("process_id", null);
                }
             }
@@ -90,143 +66,160 @@ const FormPageProcedure = ({
          { field: "retention_period_current", headerName: "at", type: "number", width: 100, min: 0, step: 1, required: true },
          { field: "retention_period_archive", headerName: "ac", type: "number", width: 100, min: 0, step: 1, required: true },
 
-         {
-            field: "ubicat",
-            headerName: "Ubicación en archivo de tramite",
-            width: 260,
-            type: "checkboxgroup",
+         { field: "location_building", headerName: "Inmueble", type: "number", width: 100, min: 0,  step: 1, required: true },
+         { field: "location_furniture", headerName: "Mueble", type: "number", width: 100, min: 0,  step: 1, required: true },
+         { field: "location_position", headerName: "Posición", type: "number", width: 100, min: 0,  step: 1, required: true },
 
-            items: [
-               { value: true, label: "Inmueble", field: "location_building" },
-               { value: true, label: "Mueble", field: "location_furniture" },
-               { value: true, label: "Posición", field: "location_position" }
-            ]
-         },
+         // {
+         //    field: "ubicat",
+         //    headerName: "Ubicación en archivo de tramite",
+         //    width: 260,
+         //    type: "number",
+
+         //    items: [
+         //       { value: 0, label: "Inmueble", field: "location_building" },
+         //       { value: 0, label: "Mueble", field: "location_furniture" },
+         //       { value: 0, label: "Posición", field: "location_position" }
+         //    ]
+         // },
          { field: "observation", headerName: "Observaciones", type: "text", width: 200 }
       ],
-      [items]
+      [proccess.items]
    );
 
    const handleSubmit = (rows: Record<string, any>[]) => {
-
       if (rows.length == 0) {
          return;
       }
 
       const today = new Date().toISOString().split("T")[0]; // Formato YYYY-MM-DD
-      if (modeTable == "delete") {
+      if (procedureCreatedAt.modeTable == "delete") {
          // Modo delete: actualizar status_id a 5 para todas las filas
          const updatedRows = rows.map((row) => ({
             ...(row as Procedure),
             errorDescriptionField: null,
-            error: row.errorFieldsKey?true:false
+            error: row.errorFieldsKey ? true : false
          }));
-         procedureData.postItem(updatedRows as Procedure[], false, false).finally(() => {
+         procedure.postItem(updatedRows as Procedure[], false, false).finally(() => {
             procedureCreatedAt.fetchData();
-            const startDate = procedureData.constants.startDate || today;
-            const departamentId = procedureData.constants.departament_id || 0;
-            procedureData.request({
+            const startDate = proccess.orderDate || today;
+            const departamentId = proccess.departament_id || 0;
+            procedure.request({
                method: "GET",
                url: `procedure/detailsprocedure/${startDate}/${departamentId}`
             });
          });
       } else {
-             const updatedRows = rows.map((row) => ({
-                ...(row as Procedure),
-                error: modeTable=="editdelete" ? false:row.error
-             }));
+         const updatedRows = rows.map((row) => ({
+            ...(row as Procedure),
+            error: procedureCreatedAt.modeTable == "fixerrors" ? false : row.error,
+            errorFieldsKey: procedureCreatedAt.modeTable == "fixerrors" ? null : row.errorFieldsKey
+         }));
          // Modo create u otros: comportamiento normal
-          procedureData.postItem(updatedRows as Procedure[], false, false).finally(() => {
-             procedureCreatedAt.fetchData();
-             const startDate = procedureData.constants.startDate || today;
-             const departamentId = procedureData.constants.departament_id || 0;
-             procedureData.request({
-                method: "GET",
-                url: `procedure/detailsprocedure/${startDate}/${departamentId}`
-             });
-          });
+         procedure.postItem(updatedRows as Procedure[], false, false).finally(() => {
+            procedureCreatedAt.fetchData();
+            const startDate = proccess.orderDate || today;
+            const departamentId = proccess.departament_id || 0;
+            procedure.request({
+               method: "GET",
+               url: `procedure/detailsprocedure/${startDate}/${departamentId}`
+            });
+         });
       }
-
-      setEditableRows([]);
-      setModeTable("create"); // ← resetear modo al cerrar
-      tableRef.current?.clearSelection();
+      procedureCreatedAt.setExtra("editableRows", []);
+      procedureCreatedAt.setExtra("modeTable", "create");
+      proccess.setOpen(false)
    };
 
- type SignatureAction = {
-   color: string;
-   label: string;
-   onClick: () => void;
-} | null;
+   type SignatureAction = {
+      color: string;
+      label: string;
+      onClick: () => void;
+   } | null;
 
-const rewiev = (): SignatureAction => {
-     const stored = localStorage.getItem("permisos");
-     const parsed = stored ? JSON.parse(stored) : [];
-     if (parsed.includes("revisar")) {
-        return {
-           label: "Marcar como revisado",
-           color: "#059669",
-           // icon: <svg>...</svg>,
-           onClick: () => {
-              procedureData
-                 .request({
-                    method: "POST",
-                    url: `procedure/changestatus`,
-                    data: {
-                       status: 3,
-                       startDate: String(procedureData.constants.startDate),
-                       departament_id: procedureData.constants.departament_id
-                    },
-                    getData: false
-                 })
-                 .finally(() => {
-                    procedureData.setOpen();
-                    const today = new Date().toISOString().split("T")[0];
-                    procedureCreatedAt.fetchData();
-                    procedureData.request({
-                       method: "GET",
-                       url: `procedure/detailsprocedure/${procedureData.constants.startDate ?? today}/${procedureData.constants.departament_id}`
-                    });
-                 });
-           }
-        };
-     }
-     return null
-};
+   const rewiev = (): SignatureAction => {
+     
+  if (procedureCreatedAt.editableRows.length > 0 && procedureCreatedAt.editableRows[0].statu_id >= 3) {
+     return null;
+   
+  }
+
+      const stored = localStorage.getItem("permisos");
+      const parsed = stored ? JSON.parse(stored) : [];
+      console.log("permisos",parsed);
+      if (parsed.includes("revisar")) {
+         return {
+            label: "Marcar como revisado",
+            color: "#059669",
+            // icon: <svg>...</svg>,
+            onClick: () => {
+               procedure
+                  .request({
+                     method: "POST",
+                     url: `procedure/changestatus`,
+                     data: {
+                        status: 3,
+                        startDate: String(proccess.orderDate),
+                        departament_id: proccess.departament_id
+                     },
+                     getData: false
+                  })
+                  .finally(() => {
+                     proccess.setOpen();
+                     const today = new Date().toISOString().split("T")[0];
+                     procedureCreatedAt.fetchData();
+                     procedure.request({
+                        method: "GET",
+                        url: `procedure/detailsprocedure/${proccess.orderDate ?? today}/${proccess.departament_id}`
+                     });
+                  });
+            }
+         };
+      }
+      return null;
+   };
 
 
- const signaturePermissionUser = (): SignatureAction => {
-   const authId = localStorage.getItem("auth_id");
-   const userName = localStorage.getItem("name");
+   const signaturePermissionUser = (): SignatureAction => {
+      const authId = localStorage.getItem("auth_id");
+      const userName = localStorage.getItem("name");
 
-   if (Number(procedureCreatedAt.constants.user_id) === Number(authId)) {
-      return {
-         color: "#030500",
-         label: "Firmar",
-         onClick: () => {
-            procedureCreatedAt.request({
-               method: "POST",
-               url: "signature/byuser",
-               // getData: false,
-               getData:true,
-               data: {
-                  user_id: procedureCreatedAt.constants.user_id
-               }
-            }).then(()=>{
-               procedureData.setOpen()
-              setDeptoDetails(prev=>({
-               ...prev,
-               open:false,
-              }))
-               signatureByUser(userName ?? "");
-            });
-         }
-      };
-   }
+ 
+      if (Number(proccess.user_id) == Number(authId)) {
+         return {
+            color: "#030500",
+            label: "Firmar",
+            onClick: () => {
+               procedureCreatedAt
+                  .request({
+                     method: "POST",
+                     url: "signature/byuser",
+                     // getData: false,
+                     getData: true,
+                     data: {
+                        user_id: proccess.user_id
+                     }
+                  })
+                  .then(() => {
+                     procedureCreatedAt.setOpen();
+                     procedureCreatedAt.setExtra("deptoDetails", {
+                        ...procedureCreatedAt.deptoDetails,
+                        open: false
+                     });
 
-   return null;
-};
+                     procedureCreatedAt.signatureByUser(userName ?? "");
+                  }).finally(()=>{
+                     proccess.setOpen()
+                  });
+            }
+         };
+      }
+
+      return null;
+   };
    return (
       <div style={{ height: "calc(100vh - 80px)" }}>
+         {/* {proccess.spinner <Loading>} */}
          <FormTable
             columns={COLS}
             errorFieldsKey="errorFieldsKey" // row.errorFields = "boxes,year"
@@ -235,22 +228,14 @@ const rewiev = (): SignatureAction => {
             errorDescriptions={{
                boxes: "Número de cajas incorrecto",
                year: "Año fuera de rango"
-               // ...
             }}
-            toolbarActions={
-               modeTable == "view"
-                  ? [
-                     rewiev(),
-                       signaturePermissionUser()
-                    ].filter(Boolean)
-                  : []
-            }
-            mode={modeTable}
-            initialRows={editableRows}
+            toolbarActions={procedureCreatedAt.modeTable == "delete" ? [rewiev(), signaturePermissionUser()].filter(Boolean) : []}
+            mode={procedureCreatedAt.modeTable}
+            initialRows={procedureCreatedAt.editableRows}
             initialSize={30}
             chunkSize={2}
+
             onSubmit={handleSubmit}
-            // onErrorChange={handleErrorChange}
             showRowNum={true}
          />
       </div>

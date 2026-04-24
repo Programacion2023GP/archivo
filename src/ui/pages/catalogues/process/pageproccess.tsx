@@ -1,31 +1,16 @@
 import { memo, useEffect } from "react";
-import { Departament } from "../../../../domain/models/departament/departament";
-import { GenericDataReturn } from "../../../../hooks/usegenericdata";
 import CompositePage from "../../../components/compositecustoms/compositePage";
-import CustomModal from "../../../components/modal/modal";
-import { useEntities } from "../../../hooks/useEntities";
-import { useValidators } from "../../../validations/validators";
 import FormPageProccess from "./form/form.pageprocess";
 import TablePageProccess from "./table/table.pageproccess";
 import useProccessData from "../../../hooks/useProccessData";
+import useDepartamentsData from "../../../hooks/useDepartamentsData";
 
-type PageProccessProps = {
-   departaments: GenericDataReturn<Departament>;
-};
 
-const PageProccess = ({ departaments }: PageProccessProps) => {
+const PageProccess = () => {
    const proccess = useProccessData();
-   const { proccessValidator } = useValidators();
+   const departaments = useDepartamentsData();
 
-   useEffect(() => {
-      proccess.request({
-         method: "GET",
-         url: `proccess/index/${departaments.initialValues.id}`
-      });
-   }, [departaments.initialValues.id]); // Dependencia cuando cambia el departamento
-function extractNumbers(classification_code:Departament['classification_code']) {
-   return classification_code.replace(/\D/g, "");
-}
+
    // Actualizar el formulario cuando se abre el modal
    useEffect(() => {
       if (proccess.open) {
@@ -38,7 +23,16 @@ function extractNumbers(classification_code:Departament['classification_code']) 
             id: 0,
             ac: null,
             at: null,
-            children_recursive: []
+            children_recursive: [],
+            boxes: 0,
+            endDate: "",
+            observation: "",
+            startDate: "",
+            fisic: false,
+            electronic: false,
+            process_id: 0,
+            user_id: 0,
+            accounting_fiscal_value: false
          });
       }
    }, [proccess.open, departaments.initialValues.id]); // Se ejecuta cada vez que se abre el modal
@@ -49,8 +43,8 @@ function extractNumbers(classification_code:Departament['classification_code']) 
          onClose={proccess.setOpen}
          isOpen={proccess.open}
          modalTitle={`Tramites`}
-         table={() => <TablePageProccess proccess={proccess} id={extractNumbers(departaments.initialValues.classification_code)} />}
-         form={() => <FormPageProccess departaments={departaments} proccess={proccess} proccessValidator={proccessValidator} />}
+         table={() => <TablePageProccess  id={proccess.extractNumbers(departaments.initialValues.classification_code)} />}
+         form={() => <FormPageProccess  />}
       />
    );
 };

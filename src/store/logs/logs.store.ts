@@ -1,7 +1,4 @@
 import { create } from "zustand";
-import type { Permissions, Users } from "../../domain/models/users/users.domain";
-import type { UsersRepository } from "../../domain/repositories/users/users.repositories";
-import { showConfirmationAlert, showToast } from "../../sweetalert/Sweetalert";
 import { LogsHistorial } from "../../domain/models/logs/logs.model";
 import { LogsRepository } from "../../domain/repositories/logs/logs.repositories";
 

@@ -1,4 +1,3 @@
-import { boolean } from "yup";
 import { ProceduresCreatedAt } from "../../../../domain/models/procedurecreatedat/procedure_created_at";
 import { Proccess } from "../../../../domain/models/proccess/proccess.domain";
 import { showToast } from "../../../../sweetalert/Sweetalert";

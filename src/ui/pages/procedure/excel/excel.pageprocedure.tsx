@@ -1,36 +1,37 @@
-import React,{ Dispatch, SetStateAction, useEffect, useState } from "react";
-import { Procedure } from "../../../../domain/models/procedure/procedure";
-import { GenericDataReturn } from "../../../../hooks/usegenericdata";
+import React,{ useState } from "react";
 import { Cell, Empty, Row, Sheet, Spacer, Workbook } from "../../../components/excel/customexcel";
 import CustomModal from "../../../components/modal/modal";
 import { DateFormat, formatDatetime } from "../../../../utils/formats";
 import { ListAutorized } from "../../../../domain/models/listautorized/listautorized";
+import useListAutorized from "../../../hooks/useListAutorized";
+import useProcedureData from "../../../hooks/useProcedureData";
+import useProcedureCreatedAtData from "../../../hooks/useProcedureCreatedAt";
 
-type TablePageProceudreProps = {
-   procedureData: GenericDataReturn<Procedure>;
-   listAutorized: GenericDataReturn<ListAutorized>;
-   open: boolean;
-   setOpen: Dispatch<SetStateAction<boolean>>;
-};
 
-const ExcelPageProcedure = ({ procedureData, open, setOpen, listAutorized }: TablePageProceudreProps) => {
-   const [items, setItems] = useState<ListAutorized[]>([]);
-   useEffect(() => {
-      const init = async () => {
-         try {
-            const response = await listAutorized.request({
-               method: "POST",
-               url: "signature/listautorized",
-               data: { procedure_id: procedureData?.items[0]?.id },
-               getData: false
-            });
-            setItems(response as ListAutorized[]);
-         } catch (error) {
-            console?.error("Error:", error);
-         }
-      };
-      init();
-   }, [open]);
+
+const ExcelPageProcedure = () => {
+    const procedureData = useProcedureData();
+    const listAutorized = useListAutorized();
+       const procedureCreatedAt = useProcedureCreatedAtData();
+   // useEffect(() => {
+   //    const init = async () => {
+   //       try {
+   //           const options = {
+   //              method: "POST",
+   //              url: "signature/listautorized",
+   //              data: { procedure_id: procedureData?.items[0]?.id },
+   //           };
+   //           console.log("🔍 ANTES de llamar - options.getData:", options);
+   //           const response = await listAutorized.request(options);
+   //       } catch (error) {
+   //          console?.error("Error:", error);
+   //       }
+   //    };
+   //    if (procedureCreatedAt.openExcel) {
+         
+   //       init();
+   //    }
+   // }, []);
 
    const FONDO = "R. AYUNTAMIENTO DE GOMEZ PALACIO, DGO";
    const SECCION = procedureData?.items[0]?.departament || "";
@@ -44,8 +45,7 @@ const ExcelPageProcedure = ({ procedureData, open, setOpen, listAutorized }: Tab
    const COLS = [42, 48, 95, 75, 80, 44, 44, 44, 40, 50, 52, 52, 44, 60, 65, 46, 40, 40, 65];
    const N = COLS.length;
 
-   const autorizadosRaw = Array.isArray(items) ? items : items;
-   const autorizados = (autorizadosRaw || []).filter((item) => item.signedBy);
+   const autorizados = (listAutorized.items || []).filter((item) => item.signedBy);
    const totalAutorizados = autorizados.length;
 
    // Obtener URLs de firmas (debes ajustar según tu modelo de datos)
@@ -186,9 +186,9 @@ const revisoSignature = procedureData?.items[0]?.["reviewed_signature_b64"] || "
    };
 
    return (
-      <CustomModal isOpen={open} onClose={() => setOpen(!open)} title={""}>
+      <CustomModal isOpen={procedureCreatedAt.openExcel} onClose={() => procedureCreatedAt.setExtra("openExcel",!procedureCreatedAt.openExcel)} title={""}>
          <Workbook zoom={150} fileName="archivo_tramite?.xlsx" title="Inventario General de Archivo de Trámite" subtitle={FONDO}>
-            <Sheet name="Archivo Trámite" colWidths={COLS} >
+            <Sheet name="Archivo Trámite" colWidths={COLS}>
                {/* Encabezados (sin cambios) */}
                <Row height={26}>
                   <Cell span={N} bold fontSize={13} bg={R} color="#fff">

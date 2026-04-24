@@ -1,4 +1,4 @@
-import { AxiosRequest, GetAxios } from "../../axios/Axios";
+import { GetAxios } from "../../axios/Axios";
 import { LogsHistorial } from "../../domain/models/logs/logs.model";
 import type { Result } from "../../domain/models/users/users.domain";
 import { LogsRepository } from "../../domain/repositories/logs/logs.repositories";

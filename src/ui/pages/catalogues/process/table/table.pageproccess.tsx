@@ -1,24 +1,22 @@
 import { AiOutlinePlusSquare } from "react-icons/ai";
 import CustomButton from "../../../../components/button/custombuttom";
-import { showConfirmationAlert, showToast } from "../../../../../sweetalert/Sweetalert";
 import { Departament } from "../../../../../domain/models/departament/departament";
-import { TfiTrash } from "react-icons/tfi";
 import CustomTable from "../../../../components/table/customtable";
 import { VscDiffAdded } from "react-icons/vsc";
 import { IoReload } from "react-icons/io5";
 import { FaCheck, FaToggleOff, FaToggleOn } from "react-icons/fa";
 import { HiX } from "react-icons/hi";
-import { GenericDataReturn } from "../../../../../hooks/usegenericdata";
 import Tooltip from "../../../../components/toltip/Toltip";
 import { PermissionRoute } from "../../../../../App";
-import { IoIosDocument } from "react-icons/io";
 import { Proccess } from "../../../../../domain/models/proccess/proccess.domain";
+import useProccessData from "../../../../hooks/useProccessData";
 
 type TablePageProccessProps = {
-   proccess: GenericDataReturn<Proccess>;
    id: Departament["classification_code"];
 };
-const TablePageProccess = ({ proccess, id }: TablePageProccessProps) => {
+const TablePageProccess = ({ id }: TablePageProccessProps) => {
+      const proccess = useProccessData();
+
    function getNextTreeCode(parentNode?: Proccess | null) {
       // Si no hay padre (nodo raíz)
 if (!parentNode) {
@@ -82,7 +80,16 @@ if (!parentNode) {
                               departament_id: null,
                               ac: null,
                               at: null,
-                              children_recursive: []
+                              children_recursive: [],
+                              boxes: 0,
+                              endDate: "",
+                              observation: "",
+                              startDate: "",
+                              fisic: false,
+                              electronic: false,
+                              process_id: 0,
+                              user_id: 0,
+                              accounting_fiscal_value: false
                            });
                         }}
                      >
@@ -97,7 +104,7 @@ if (!parentNode) {
                         variant="solid"
                         color="green"
                         onClick={() => {
-                           proccess.fetchData();
+                           proccess.fetchById();
                         }}
                      >
                         {" "}
@@ -127,16 +134,15 @@ if (!parentNode) {
                   { value: 0, label: "No" }
                ],
                renderField: (v) => {
-                  const isAuthorized = Boolean(v as boolean);
                   return (
                      <div className="flex justify-center">
                         <span
                            className={`
             inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold
-            ${isAuthorized ? "bg-green-100 text-green-700" : "bg-red-100 text-red-700"}
+            ${v ? "bg-green-100 text-green-700" : "bg-red-100 text-red-700"}
           `}
                         >
-                           {isAuthorized ? (
+                           {v ? (
                               <>
                                  <FaCheck className="text-green-600" size={12} />
                                  Sí
@@ -171,7 +177,16 @@ if (!parentNode) {
                               departament_id: row.departament_id,
                               ac: null,
                               at: null,
-                              children_recursive: []
+                              children_recursive: [],
+                              boxes: 0,
+                              endDate: "",
+                              observation: "",
+                              startDate: "",
+                              fisic: false,
+                              electronic: false,
+                              process_id: 0,
+                              user_id: 0,
+                              accounting_fiscal_value: false
                            });
                         }}
                         color="cyan"
@@ -181,16 +196,10 @@ if (!parentNode) {
                   </Tooltip>
                </PermissionRoute>
                <PermissionRoute requiredPermission={"catalogo_tramite_eliminar"}>
-                  <Tooltip content={`Desactivar a ${row.name}`}>
+                  <Tooltip content={`${row.active?'Desactivar':'Activar'} a ${row.name}`}>
                      <CustomButton
                         onClick={() => {
-                           showConfirmationAlert(`Eliminar`, { text: `Se desactivara el tramite con sus subtramites ${row.name} ` }).then((isConfirmed) => {
-                              if (isConfirmed) {
-                                 proccess.removeItemData(row as Proccess);
-                              } else {
-                                 showToast("La acción fue cancelada.", "error");
-                              }
-                           });
+                          proccess.deleteProcess(row)
                         }}
                         color={row.active ? "green" : "slate"}
                         variant="solid"

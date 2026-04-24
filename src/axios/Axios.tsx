@@ -66,7 +66,7 @@ export const AxiosRequest = async (url: string, method: "POST" | "PUT" | "DELETE
       const isAlreadyFormData = values instanceof FormData;
 
       // Solo convertir a FormData si se fuerza o si el valor ya es FormData
-      let useFormData = forceFormData || isAlreadyFormData;
+      const useFormData = forceFormData || isAlreadyFormData;
 
       if (useFormData && !isAlreadyFormData && values) {
          const formData = new FormData();

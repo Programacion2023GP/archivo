@@ -1,13 +1,12 @@
 import { Departament } from "../../../../../domain/models/departament/departament";
-import { GenericDataReturn } from "../../../../../hooks/usegenericdata";
-import { RESPONSIVE } from "../../../../../utils/compressfiles";
 import FormikForm from "../../../../formik/Formik";
 import { FormikInput } from "../../../../formik/FormikInputs/FormikInput";
-type TablePageUsersProps = {
-   departaments: GenericDataReturn<Departament>;
-   departamentsValidator: any;
-};
-const FormPageDepartaments = ({ departaments, departamentsValidator }: TablePageUsersProps) => {
+import useDepartamentsData from "../../../../hooks/useDepartamentsData";
+import { useValidators } from "../../../../validations/validators";
+
+const FormPageDepartaments = () => {
+   const departaments = useDepartamentsData();
+   const { departamentsValidator } = useValidators();
    return (
       <>
          <FormikForm
@@ -17,10 +16,10 @@ const FormPageDepartaments = ({ departaments, departamentsValidator }: TablePage
             initialValues={departaments.initialValues}
             children={() => (
                <>
-                  <FormikInput name="classification_code" label="Codigo de clasificación" responsive={RESPONSIVE} />
+                  <FormikInput name="classification_code" label="Codigo de clasificación" responsive={departaments.responsive} />
 
-                  <FormikInput name="name" label="Nombre" responsive={RESPONSIVE} />
-                  <FormikInput name="abbreviation" label="Abreviatura" responsive={RESPONSIVE} />
+                  <FormikInput name="name" label="Nombre" responsive={departaments.responsive} />
+                  <FormikInput name="abbreviation" label="Abreviatura" responsive={departaments.responsive} />
                </>
             )}
             onSubmit={(values) => {

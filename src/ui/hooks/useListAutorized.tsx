@@ -1,9 +1,13 @@
 import { useMemo } from "react";
-import { useGenericData } from "../../hooks/usegenericdata";
-import { Departament } from "../../domain/models/departament/departament";
+import { GenericDataReturn, useGenericData } from "../../hooks/usegenericdata";
 import { ListAutorized } from "../../domain/models/listautorized/listautorized";
 
-const useListAutorized = () => {
+
+// ─── Extensión con métodos ───────────────────────────────────────────────
+
+
+export type ListAutorizedDataReturn = GenericDataReturn<ListAutorized, {}, {}, {}>;
+const useListAutorized = (): ListAutorizedDataReturn => {
    const initialState = useMemo<ListAutorized>(
       () => ({
          id: 0,
@@ -11,16 +15,20 @@ const useListAutorized = () => {
          group: "",
          signedBy: false,
          user_id: 0,
-         procedure_id:0
+         procedure_id: 0
       }),
       []
    );
 
-   return useGenericData<ListAutorized>({
+   const result = useGenericData<ListAutorized, {}, {}, {}>({
       initialState,
       prefix: "signature",
       autoFetch: false
    });
+
+
+
+   return result;
 };
 
 export default useListAutorized;

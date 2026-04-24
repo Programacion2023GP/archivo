@@ -46,7 +46,10 @@ const PALETTE = {
    zinc: { base: "#71717a", dark: "#52525b", light: "#fafafa", border: "rgba(113,113,122,0.22)", glow: "rgba(113,113,122,0.18)", text: "#fff" },
    stone: { base: "#78716c", dark: "#57534e", light: "#fafaf9", border: "rgba(120,113,108,0.22)", glow: "rgba(120,113,108,0.18)", text: "#fff" },
    charcoal: { base: "#1f2937", dark: "#111827", light: "#f3f4f6", border: "rgba(31,41,55,0.22)", glow: "rgba(31,41,55,0.18)", text: "#fff" },
-   warmGray: { base: "#8b7e6e", dark: "#6b5e4e", light: "#fefaf5", border: "rgba(139,126,110,0.22)", glow: "rgba(139,126,110,0.18)", text: "#fff" }
+   warmGray: { base: "#8b7e6e", dark: "#6b5e4e", light: "#fefaf5", border: "rgba(139,126,110,0.22)", glow: "rgba(139,126,110,0.18)", text: "#fff" },
+
+   // Default fallback
+   default: { base: "#9B2242", dark: "#7a1a35", light: "#fceef2", border: "rgba(155,34,66,0.22)", glow: "rgba(155,34,66,0.20)", text: "#fff" }
 } as const;
 
 type ColorKey = keyof typeof PALETTE;
@@ -87,12 +90,11 @@ export type ButtonProps = {
 
    // Badge
    badge?: string | number | boolean | React.ReactNode;
-   badgeColor?: ColorKey | "white" | "gray";
+   badgeColor?: ColorKey | "white" | "gray" | "black";
    badgeVariant?: BadgeVariant;
    badgePosition?: BadgePosition;
    badgeClassName?: string;
    showBadge?: boolean;
-   // El badge siempre va en portal ahora
    badgePortal?: boolean;
 };
 
@@ -193,7 +195,7 @@ function injectGlobalCSS() {
       width: 100%;
       height: 100%;
       pointer-events: none;
-      z-index: 2;
+      z-index: 9999;
     }
 
     /* Badge base styles */
@@ -231,14 +233,20 @@ function useRipple() {
    VARIANT STYLE BUILDER - MODIFICADO PARA ESTILOS MÁS MODERNOS
 ══════════════════════════════════════════════════════════════ */
 
+function getColor(colorKey: ColorKey) {
+   return PALETTE[colorKey] || PALETTE.default;
+}
+
 function buildStyle(
    variant: ButtonVariant,
-   col: (typeof PALETTE)[ColorKey],
+   colorKey: ColorKey,
    s: (typeof SIZES)[ButtonSize],
    iconOnly: boolean,
    fullWidth: boolean,
    disabled: boolean
 ): React.CSSProperties {
+   const col = getColor(colorKey);
+
    const shared: React.CSSProperties = {
       display: "inline-flex",
       alignItems: "center",
@@ -265,10 +273,10 @@ function buildStyle(
    };
 
    const vars = {
-      "--_cb_light": col.light,
       "--_cb_glow": col.glow,
       "--_cb_base": col.base,
-      "--_cb_border": col.border
+      "--_cb_border": col.border,
+      "--_cb_light": col.light
    } as React.CSSProperties;
 
    switch (variant) {
@@ -318,6 +326,8 @@ function buildStyle(
             boxShadow: `0 2px 8px ${col.glow}`,
             borderRadius: s.radius
          };
+      default:
+         return shared;
    }
 }
 
@@ -368,9 +378,12 @@ const BADGE_MAP: Record<string, { bg: string; text: string }> = {
    charcoal: { bg: PALETTE.charcoal.base, text: PALETTE.charcoal.text },
    warmGray: { bg: PALETTE.warmGray.base, text: PALETTE.warmGray.text },
 
-   // Special (keep these for flexibility)
+   // Special
    white: { bg: "#ffffff", text: "#1a1a24" },
-   black: { bg: "#000000", text: "#ffffff" }
+   black: { bg: "#000000", text: "#ffffff" },
+
+   // Default fallback
+   red: { bg: "#dc2626", text: "#ffffff" }
 } as const;
 
 /* ══════════════════════════════════════════════════════════════
@@ -487,12 +500,11 @@ export const CustomButton: React.FC<ButtonProps> = ({
    const rafRef = useRef<number>(null);
 
    const s = SIZES[size];
-   const col = PALETTE[color];
    const isIconOnly = iconPosition === "only" || (!children && !!icon);
    const isLightVar = variant !== "solid";
    const hasBadge = showBadge && badge !== undefined && badge !== null && badge !== false;
 
-   const style = buildStyle(variant, col, s, isIconOnly, fullWidth, disabled);
+   const style = buildStyle(variant, color, s, isIconOnly, fullWidth, disabled);
    const variantCls = variant === "icon" ? "_cb_icon_v" : `_cb_${variant}`;
 
    const handleClick = (e: React.MouseEvent<HTMLButtonElement>) => {
@@ -515,24 +527,24 @@ export const CustomButton: React.FC<ButtonProps> = ({
 
       switch (badgePosition) {
          case "top-right":
-            top = rect.top;
-            left = rect.right;
-            transform = "translate(-50%, -50%)";
+            top = rect.top - offset;
+            left = rect.right - offset;
+            transform = "translate(0, 0)";
             break;
          case "top-left":
-            top = rect.top;
-            left = rect.left;
-            transform = "translate(50%, -50%)";
+            top = rect.top - offset;
+            left = rect.left + offset;
+            transform = "translate(-100%, 0)";
             break;
          case "bottom-right":
-            top = rect.bottom;
-            left = rect.right;
-            transform = "translate(-50%, 50%)";
+            top = rect.bottom + offset;
+            left = rect.right - offset;
+            transform = "translate(0, -100%)";
             break;
          case "bottom-left":
-            top = rect.bottom;
-            left = rect.left;
-            transform = "translate(50%, 50%)";
+            top = rect.bottom + offset;
+            left = rect.left + offset;
+            transform = "translate(-100%, -100%)";
             break;
       }
 
@@ -541,14 +553,14 @@ export const CustomButton: React.FC<ButtonProps> = ({
          top: `${top}px`,
          left: `${left}px`,
          transform,
-         zIndex: 9999,
+         zIndex: 10000,
          willChange: "transform"
       });
    };
 
    // Setup del portal y animación
    useEffect(() => {
-      if (!hasBadge) return;
+      if (!hasBadge || !badgePortal) return;
 
       // Crear elemento portal
       const el = document.createElement("div");
@@ -575,7 +587,44 @@ export const CustomButton: React.FC<ButtonProps> = ({
          }
          setPortalEl(null);
       };
-   }, [hasBadge, badgePosition, badgeVariant, s.dotW, s.badgeH]);
+   }, [hasBadge, badgePortal, badgePosition, badgeVariant, s.dotW, s.badgeH]);
+
+   // Si no usa portal, renderizar badge directamente en el botón
+   const renderBadgeDirect = () => {
+      if (!hasBadge || badgePortal) return null;
+
+      let positionStyle: React.CSSProperties = {};
+      const offset = badgeVariant === "dot" || badgeVariant === "pulse" ? -s.dotW / 2 : -s.badgeH / 2;
+
+      switch (badgePosition) {
+         case "top-right":
+            positionStyle = { top: offset, right: offset };
+            break;
+         case "top-left":
+            positionStyle = { top: offset, left: offset };
+            break;
+         case "bottom-right":
+            positionStyle = { bottom: offset, right: offset };
+            break;
+         case "bottom-left":
+            positionStyle = { bottom: offset, left: offset };
+            break;
+      }
+
+      return (
+         <BadgeEl
+            badge={badge!}
+            badgeColor={badgeColor}
+            badgeVariant={badgeVariant}
+            badgePosition={badgePosition}
+            badgeClassName={badgeClassName}
+            dotW={s.dotW}
+            badgeH={s.badgeH}
+            badgeFont={s.badgeFont}
+            style={positionStyle}
+         />
+      );
+   };
 
    return (
       <>
@@ -585,7 +634,7 @@ export const CustomButton: React.FC<ButtonProps> = ({
             onClick={handleClick}
             disabled={disabled || loading}
             className={`_cb_btn ${variantCls} ${loading ? "_cb_busy" : ""} ${className}`}
-            style={style}
+            style={{ ...style, position: "relative" }}
             aria-busy={loading}
          >
             {ripples.map((rp) => (
@@ -625,9 +674,12 @@ export const CustomButton: React.FC<ButtonProps> = ({
                   </>
                )}
             </span>
+
+            {renderBadgeDirect()}
          </button>
 
          {hasBadge &&
+            badgePortal &&
             portalEl &&
             ReactDOM.createPortal(
                <BadgeEl
@@ -669,15 +721,27 @@ export const ButtonGroup: React.FC<ButtonGroupProps> = ({ children, gap = 8, att
                overflow: "hidden",
                border: "1px solid rgba(0,0,0,0.08)",
                boxShadow: "0 4px 12px rgba(0,0,0,0.06)",
-               padding: 2
+               padding: 2,
+               gap: attached ? 0 : gap
             }}
          >
-            {React.Children.map(children, (child) => {
+            {React.Children.map(children, (child, index) => {
                if (!React.isValidElement(child)) return child;
+               const isFirst = index === 0;
+               const isLast = index === React.Children.count(children) - 1;
                return React.cloneElement(child as React.ReactElement<any>, {
                   style: {
                      ...((child as React.ReactElement<any>).props.style ?? {}),
-                     borderRadius: 9999,
+                     borderRadius:
+                        isFirst && direction === "row"
+                           ? "9999px 0 0 9999px"
+                           : isLast && direction === "row"
+                             ? "0 9999px 9999px 0"
+                             : isFirst && direction === "column"
+                               ? "9999px 9999px 0 0"
+                               : isLast && direction === "column"
+                                 ? "0 0 9999px 9999px"
+                                 : "0",
                      border: "none",
                      boxShadow: "none",
                      margin: 0

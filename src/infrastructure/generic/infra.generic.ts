@@ -1,128 +1,98 @@
 import { AxiosRequest, GetAxios } from "../../axios/Axios";
-import type { Result } from "../../domain/models/users/users.domain";
-
-import { GenericRepository } from "../../domain/repositories/generic/generic.repositories";
+import { Result } from "../../domain/models/users/users.domain";
+import type { GenericRepository, RequestOptions } from "../../domain/repositories/generic/generic.repositories";
+import { genericConfig } from "../../generic.config";
 
 export class GenericApi<T extends object> implements GenericRepository<T> {
+   private cfg = genericConfig;
+
+   private mapError(error: any): string {
+      return error?.response?.data?.message ?? error?.message ?? this.cfg.messages.networkError;
+   }
+
    async getAll(prefix: string): Promise<Result<T[]>> {
       try {
-         const response = await GetAxios(`${import.meta.env.VITE_API_URL}/${prefix}/index`);
+         const url = `${this.cfg.baseUrl}/${this.cfg.endpoints.getAll(prefix)}`;
+         const response = await GetAxios(url);
 
-         return { ok: true, data: response?.data, message: response.message };
-      } catch (error: any) {
-         throw error;
-         return { ok: false, error: new Error(String(error)), message: String(error) };
-      }
-   }
-   async create(data: T | T[], prefix: string, formData: boolean = false): Promise<Result<T>> {
-      try {
-         const response = await AxiosRequest(`${import.meta.env.VITE_API_URL}/${prefix}/createorUpdate`, "POST", data, formData);
+         const ok = this.cfg.responseMap.ok(response);
+         const rawData = this.cfg.responseMap.data(response);
+         const data = this.cfg.middlewares.afterResponse?.(rawData) ?? rawData;
+         const message = this.cfg.responseMap.message(response);
 
-         return {
-            ok: true,
-            data: response.data,
-            message: response.message
-         };
-      } catch (error: any) {
-         if (error.response) {
-            const laravelError = error.response.data;
-
-            return {
-               ok: false,
-               error: new Error(laravelError.message ?? "Error desconocido desde el servidor"),
-               message: laravelError.message ?? "Error en la petición"
-            };
-         }
-
-         // ==========
-         // 🟥 ERROR DE AXIOS O NETWORK
-         // ==========
-         return {
-            ok: false,
-            error: new Error(String(error)),
-            message: "Error de conexión con el servidor"
-         };
-      }
-   }
-   async request<T>(options: { data: Partial<T>; prefix: string; method: "POST" | "PUT" | "GET" | "DELETE"; formData?: boolean }): Promise<Result<T>> {
-      const { data, prefix, method, formData = false } = options;
-
-      try {
-         let response = null;
-
-         if (method === "GET") {
-            response = await GetAxios(`${import.meta.env.VITE_API_URL}/${prefix}`);
+         if (ok) {
+            return { ok: true, data, message };
          } else {
-            response = await AxiosRequest(`${import.meta.env.VITE_API_URL}/${prefix}`, method, data, formData);
+            return { ok: false, error: new Error(message), message };
          }
-
-         return {
-            ok: true,
-            data: response.data,
-            message: response.message
-         };
       } catch (error: any) {
-         if (error.response) {
-            const laravelError = error.response.data;
-            const errorMessage = laravelError?.message ?? "Error desconocido desde el servidor";
-
-            return {
-               ok: false,
-               error: new Error(errorMessage),
-               message: errorMessage
-            };
-         }
-
-         // ==========
-         // 🟥 ERROR DE AXIOS O NETWORK
-         // ==========
-         const errorMessage = error.message || "Error de conexión con el servidor";
-
-         return {
-            ok: false,
-            error: new Error(errorMessage),
-            message: "Error de conexión con el servidor"
-         };
+         const message = this.mapError(error);
+         return { ok: false, error: new Error(message), message };
       }
    }
+
+   async create(data: T | T[], prefix: string, formData = false): Promise<Result<T | T[]>> {
+      try {
+         const url = `${this.cfg.baseUrl}/${this.cfg.endpoints.create(prefix)}`;
+         const payload = this.cfg.middlewares.beforeRequest?.(data) ?? data;
+         const response = await AxiosRequest(url, "POST", payload, formData);
+
+         const ok = this.cfg.responseMap.ok(response);
+         const rawData = this.cfg.responseMap.data(response);
+         const message = this.cfg.responseMap.message(response) || this.cfg.messages.createSuccess;
+
+         if (ok) {
+            return { ok: true, data: rawData, message };
+         } else {
+            return { ok: false, error: new Error(message), message };
+         }
+      } catch (error: any) {
+         const message = this.mapError(error);
+         return { ok: false, error: new Error(message), message };
+      }
+   }
+
    async delete(data: T, prefix: string): Promise<Result<void>> {
       try {
-         const response = await AxiosRequest(`${import.meta.env.VITE_API_URL}/${prefix}/delete`, "DELETE", data);
+         const url = `${this.cfg.baseUrl}/${this.cfg.endpoints.delete(prefix)}`;
+         const payload = this.cfg.middlewares.beforeRequest?.(data) ?? data;
+         const response = await AxiosRequest(url, "DELETE", payload);
 
-         // Si el backend devuelve un status de error
-         if (response.status === "error") {
-            return {
-               ok: false,
-               error: new Error(String(response.message)),
-               message: String(response.message)
-            };
+         const ok = this.cfg.responseMap.ok(response);
+         const message = this.cfg.responseMap.message(response) || this.cfg.messages.deleteSuccess;
+
+         if (ok) {
+            return { ok: true, data: undefined, message };
+         } else {
+            return { ok: false, error: new Error(message), message };
          }
-
-         return {
-            ok: true,
-            data: undefined,
-            message: response.message || "Elemento eliminado correctamente"
-         };
       } catch (error: any) {
-         console.log("Error en delete:", error);
+         const message = this.mapError(error);
+         return { ok: false, error: new Error(message), message };
+      }
+   }
 
-         // Manejo de errores específicos del backend Laravel
-         if (error.response) {
-            const laravelError = error.response.data;
+   async request<R = T>(options: RequestOptions<T>): Promise<Result<R>> {
+      const { data, prefix, method, formData = false } = options;
+      try {
+         const url = `${this.cfg.baseUrl}/${this.cfg.endpoints.request(prefix)}`;
+         const payload = data ? (this.cfg.middlewares.beforeRequest?.(data) ?? data) : data;
 
-            return {
-               ok: false,
-               error: new Error(laravelError.message ?? "Error al eliminar el elemento"),
-               message: laravelError.message ?? "Error en la eliminación"
-            };
+         const response = method === "GET" ? await GetAxios(url) : await AxiosRequest(url, method, payload, formData);
+
+         const ok = this.cfg.responseMap.ok(response);
+         const rawData = this.cfg.responseMap.data(response);
+         const resData = this.cfg.middlewares.afterResponse?.(rawData) ?? rawData;
+         const message = this.cfg.responseMap.message(response);
+
+         if (ok) {
+            return { ok: true, data: resData as R, message };
+         } else {
+            return { ok: false, error: new Error(message), message };
          }
-
-         // Error de red o de Axios
-         return {
-            ok: false,
-            error: new Error(String(error)),
-            message: "Error de conexión con el servidor"
-         };
+      } catch (error: any) {
+         const message = this.mapError(error);
+         return { ok: false, error: new Error(message), message };
       }
    }
 }

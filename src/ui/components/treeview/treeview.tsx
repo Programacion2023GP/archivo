@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
-import { User, Building2, Check, ChevronUp, ChevronDown, AlertCircle } from "lucide-react";
+import { User, Building2, Check, AlertCircle } from "lucide-react";
 
 interface ChainNode {
    [key: string]: any;
