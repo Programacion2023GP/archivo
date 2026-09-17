@@ -386,7 +386,6 @@ export function createGenericStore<T extends { id?: number }, E = {}, P extends 
                      return dataArray;
                   } else {
                      if (options.getData === true) {
-                        console.log("aqui mer", options.getData);
                         await get().fetchData();
                      }
                      log("request", "success", { data: result.data }, duration);

@@ -11,8 +11,7 @@ export interface Users {
    payroll: number;
    permissions: number[];
    departament?: string;
-   signature?: string;
-   signature_position?:number,
+    signature?: string;
 }     
 export type Result<T> =
   | { ok: true; data: T,message:string }

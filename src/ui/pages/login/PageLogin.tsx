@@ -681,32 +681,13 @@ const PageLoginMorena = () => {
                                     ) : (
                                        <>
                                           <FiArchive size={20} />
-                                          <span>Abrir Bóveda</span>
+                                          <span>Iniciar sesión</span>
                                        </>
                                     )}
                                  </motion.button>
 
                                  {/* Estadísticas de archivos en tiempo real */}
-                                 <motion.div
-                                    className="grid grid-cols-3 gap-2 text-center text-xs text-[#B8B6AF] pt-4 border-t border-[#474C55]"
-                                    initial={{ opacity: 0 }}
-                                    animate={{ opacity: 1 }}
-                                    transition={{ delay: 1.4 }}
-                                 >
-                                    <motion.div animate={{ scale: [1, 1.05, 1] }} transition={{ duration: 3, repeat: Infinity, delay: 0.2 }}>
-                                       <div className="font-mono text-white text-sm">1,284</div>
-                                       <div>Documentos</div>
-                                    </motion.div>
-                                    <motion.div animate={{ scale: [1, 1.05, 1] }} transition={{ duration: 3, repeat: Infinity, delay: 0.5 }}>
-                                       <div className="font-mono text-white text-sm">64</div>
-                                       <div>Cajas</div>
-                                    </motion.div>
-                                    <motion.div animate={{ scale: [1, 1.05, 1] }} transition={{ duration: 3, repeat: Infinity, delay: 0.8 }}>
-                                       <div className="font-mono text-white text-sm">2.3GB</div>
-                                       <div>Espacio</div>
-                                    </motion.div>
-                                 </motion.div>
-
+                              
                                  <motion.div className="text-center" initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.8, delay: 1.2 }}>
                                     <div className="p-2 border-t border-white/10">
                                        <p className="text-white/65 text-xs">Versión {import.meta.env.VITE_APP_VERSION}</p>

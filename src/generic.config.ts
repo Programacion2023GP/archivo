@@ -65,6 +65,6 @@ export const genericConfig: GenericConfig = {
       beforeRequest: (data) => data,
       afterResponse: (data) => data,
       onError: (msg) => console.error("[GenericStore]", msg),
-      onSuccess: (msg) => console.log("[GenericStore]", msg)
+      onSuccess: (_msg) => {}
    }
 };

@@ -17,7 +17,6 @@ export interface UsersExtraState {
 
 // ─── Extensión con métodos ───────────────────────────────────────────────
 export interface UsersMethods {
-firmedForzed:(id:number,value:number)=>void
 }
 
 export type UsersDataReturn = GenericDataReturn<Users, UsersMethods, UsersPersistState, UsersExtraState>;
@@ -48,17 +47,6 @@ const useUsersData = (): UsersDataReturn => {
       persistKey: "users-persist",
       extraState: { changepassword: null, user_id: null }, 
       extension:(set,get,persist)=>({
-         firmedForzed(id, value) {
-               get().request({
-                  method: "POST",
-                  url: `users/signature_position`,
-                  data: {
-                     id,
-                     signature_position:value,
-                  },
-                  getData: true
-               });
-         },
       }),
       hooks: {
        

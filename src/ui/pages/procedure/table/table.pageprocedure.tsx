@@ -36,7 +36,6 @@ const TablePageProceudre = () => {
          return 0;
       }
         if (item.user_id == Number(authId)) {
-         console.log("saludos cordiales");
            procedureCreatedAt.setExtra("userSignature", true);
         }
         else{
@@ -147,10 +146,11 @@ const TablePageProceudre = () => {
                   field: "authorization_chain",
                   headerName: "Progreso",
                   renderField: (v: any, row) => {
-                     if (row.error) {
+                     const statusLower = String(row.status).toLowerCase();
+                     if (statusLower === "rechazado" || row.error) {
                         return (
-                           <CustomBadge variant="solid" icon={<IoIosWarning />} color="warning" size="lg">
-                              Requiere corrección
+                           <CustomBadge variant="solid" icon={<IoIosWarning />} color="danger" size="lg">
+                              Rechazado - Requiere corrección
                            </CustomBadge>
                         );
                      } else {
@@ -159,12 +159,10 @@ const TablePageProceudre = () => {
                               data={v}
                               nameField="name"
                               groupField="group"
-                              // levelField=""
                               directorField="director_name"
                               showGroup
-                              // showLevel
                               showDirector
-                              currentStatus={row.status} // ← el status global de la fila
+                              currentStatus={row.status}
                            />
                         );
                      }
@@ -176,12 +174,13 @@ const TablePageProceudre = () => {
             actions={(row) => {
                const stored = localStorage.getItem("permisos");
                const parsed = stored ? JSON.parse(stored) : [];
-               // if (parsed.includes("revisar")) {
-               //    console.log("aqui")
-               //    return;
-               // }
+               const userRole = localStorage.getItem("role")?.toLowerCase() || "";
+               const statusLower = String(row.status).toLowerCase();
+               const isReviewedOrFinalized = ["revisado", "finalizado"].includes(statusLower);
+               const hideDetailForUsuario = userRole === "usuario" && isReviewedOrFinalized;
                return (
                   <>
+                     {!hideDetailForUsuario && (
                      <PermissionRoute requiredPermission={"tramite_ver"}>
                         <Tooltip content="Ver detalles">
                            <CustomButton
@@ -197,9 +196,8 @@ const TablePageProceudre = () => {
                                  .finally(() => {
                                     proccess.setExtra("orderDate", row.order_date);
                                     proccess.setExtra("departament_id", row.departament_id);
-                                    if (!["captura", "enviado"].includes(String(row.status).toLowerCase())) {
-                                       proccess.setExtra("user_id", findAsignatureUser(row.authorization_chain));
-                                    }
+                                    // Siempre calcular el siguiente firmante pendiente de la cadena
+                                    proccess.setExtra("user_id", findAsignatureUser(row.authorization_chain));
 
                                        if (row.status == "rechazado") {
                                           proccess.setExtra("status", "rechazado");
@@ -216,6 +214,7 @@ const TablePageProceudre = () => {
                            </CustomButton>
                         </Tooltip>
                      </PermissionRoute>
+                     )}
 
                      <PermissionRoute requiredPermission={"tramite_ver"}>
                         <Tooltip content="Excel">
@@ -230,8 +229,7 @@ const TablePageProceudre = () => {
                                        url: `procedure/detailsprocedure/${row.order_date}/${row.departament_id}`
                                     })
                                     .finally(() => {
-                                       console.log("table");
-                                       const items = listAutorized
+                                             const items = listAutorized
                                           .request({
                                              method: "POST",
                                              url: "signature/listautorized",
@@ -241,11 +239,9 @@ const TablePageProceudre = () => {
                                              getData: false
                                           })
                                           .then((it) => {
-                                             console.log("aqui es",it)
                                              listAutorized.setItems(it as ListAutorized[]);
                                              procedureCreatedAt.setExtra("openExcel", true);
                                           });
-                                       console.log("data", items);
                                     });
                               }}
                            >

@@ -15,6 +15,26 @@ const FormPageUsers = ({validationSchema,getEmployed}: FormPageUsersProps) => {
     const permissions = usePermissionsData();
     const departaments = useDepartamentsData();
 
+    const storedPermissions = localStorage.getItem("permisos");
+    const hasSistemasPermission = (storedPermissions ? JSON.parse(storedPermissions) : []).includes("sistemas");
+
+    const roleOptions = [
+       {
+          id: "Administrativo",
+          name: "Administrativo"
+       },
+       {
+          id: "Director",
+          name: "Director"
+       },
+       {
+          id: "Usuario",
+          name: "Enlace"
+       }
+    ].filter((role) => role.id !== "Administrativo" || hasSistemasPermission);
+
+    const assignablePermissions = (permissions.items || []).filter((p) => p.name !== "sistemas" || hasSistemasPermission);
+
    return (
       <div className="pt-4">
          <FormikForm
@@ -36,24 +56,7 @@ const FormPageUsers = ({validationSchema,getEmployed}: FormPageUsersProps) => {
                   <FormikAutocomplete
                      label="Rol"
                      name="role"
-                     options={[
-                        {
-                           id: "Administrativo",
-                           name: "Administrativo"
-                        },
-                        {
-                           id: "Director",
-                           name: "Director"
-                        },
-                        {
-                           id: "Enlance",
-                           name: "Enlance"
-                        },
-                        {
-                           id: "Usuario",
-                           name: "Usuario"
-                        }
-                     ]}
+                     options={roleOptions}
                      responsive={RESPONSIVE}
                      idKey="id"
                      labelKey="name"
@@ -61,7 +64,7 @@ const FormPageUsers = ({validationSchema,getEmployed}: FormPageUsersProps) => {
                   <FormikInput name="firstName" label="Nombre" responsive={RESPONSIVE} />
                   <FormikInput name="paternalSurname" label="Apellido Paterno" responsive={RESPONSIVE} />
                   <FormikInput name="maternalSurname" label="Apellido Materno" responsive={RESPONSIVE} />
-                  <FTransferList name="permissions" label="Asignar Permissos" departamentos={permissions.items} idKey="id" labelKey="name" />
+                  <FTransferList name="permissions" label="Asignar Permissos" departamentos={assignablePermissions} idKey="id" labelKey="name" />
                </>
             )}
             onSubmit={(values) => {

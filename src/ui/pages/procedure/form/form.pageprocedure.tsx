@@ -6,6 +6,7 @@ import { Procedure } from "../../../../domain/models/procedure/procedure";
 import { accessCreateProcedure } from "../utils/utils.pageprocedure";
 import useProcedureCreatedAtData from "../../../hooks/useProcedureCreatedAt";
 import useProcedureData from "../../../hooks/useProcedureData";
+import { showConfirmationAlert } from "../../../../sweetalert/Sweetalert";
 
 const FormPageProcedure = () => {
    const proccess = useProccessData();
@@ -55,7 +56,7 @@ const FormPageProcedure = () => {
          {
             field: "vadoc",
             headerName: "Valores Documentales",
-            width: 260,
+            width: 360,
             type: "checkboxgroup",
             items: [
                { value: true, label: "Administrativo", field: "administrative_value" },
@@ -66,9 +67,9 @@ const FormPageProcedure = () => {
          { field: "retention_period_current", headerName: "at", type: "number", width: 100, min: 0, step: 1, required: true },
          { field: "retention_period_archive", headerName: "ac", type: "number", width: 100, min: 0, step: 1, required: true },
 
-         { field: "location_building", headerName: "Inmueble", type: "number", width: 100, min: 0,  step: 1, required: true },
-         { field: "location_furniture", headerName: "Mueble", type: "number", width: 100, min: 0,  step: 1, required: true },
-         { field: "location_position", headerName: "Posición", type: "number", width: 100, min: 0,  step: 1, required: true },
+         { field: "location_building", headerName: "Inmueble", type: "text", width: 100, required: true },
+         { field: "location_furniture", headerName: "Mueble", type: "text", width: 100, required: true },
+         { field: "location_position", headerName: "Posición", type: "text", width: 100, required: true },
 
          // {
          //    field: "ubicat",
@@ -94,27 +95,43 @@ const FormPageProcedure = () => {
 
       const today = new Date().toISOString().split("T")[0]; // Formato YYYY-MM-DD
       if (procedureCreatedAt.modeTable == "delete") {
-         // Modo delete: actualizar status_id a 5 para todas las filas
-         const updatedRows = rows.map((row) => ({
-            ...(row as Procedure),
-            errorDescriptionField: null,
-            error: row.errorFieldsKey ? true : false
-         }));
-         procedure.postItem(updatedRows as Procedure[], false, false).finally(() => {
-            procedureCreatedAt.fetchData();
-            const startDate = proccess.orderDate || today;
-            const departamentId = proccess.departament_id || 0;
-            procedure.request({
-               method: "GET",
-               url: `procedure/detailsprocedure/${startDate}/${departamentId}`
+         // Modo revisión: preguntar si desea marcar como revisado
+         showConfirmationAlert("Marcar como revisado", {
+            text: "Al confirmar, el trámite cambiará a estado Revisado. ¿Desea continuar?"
+         }).then((isConfirmed) => {
+            if (!isConfirmed) return;
+
+            // Revisar: filas con observaciones → rechazadas (4), sin observaciones → revisadas (3)
+            const updatedRows = rows.map((row) => {
+               const hasError = !!row.errorDescriptionField;
+               const errorFields = hasError ? '_rejected_' : null;
+               return {
+                  ...(row as Procedure),
+                  error: hasError,
+                  errorFieldsKey: errorFields,
+                  errorDescriptionField: row.errorDescriptionField || null,
+                  statu_id: hasError ? 4 : 3,
+               };
+            });
+            procedure.postItem(updatedRows as Procedure[], false, false).finally(() => {
+               procedureCreatedAt.fetchData();
+               const startDate = proccess.orderDate || today;
+               const departamentId = proccess.departament_id || 0;
+               procedure.request({
+                  method: "GET",
+                  url: `procedure/detailsprocedure/${startDate}/${departamentId}`
+               });
             });
          });
-      } else {
-         const updatedRows = rows.map((row) => ({
-            ...(row as Procedure),
-            error: procedureCreatedAt.modeTable == "fixerrors" ? false : row.error,
-            errorFieldsKey: procedureCreatedAt.modeTable == "fixerrors" ? null : row.errorFieldsKey
-         }));
+       } else {
+          const isFix = procedureCreatedAt.modeTable == "fixerrors";
+          const updatedRows = rows.map((row) => ({
+             ...(row as Procedure),
+             error: isFix ? false : row.error,
+             errorFieldsKey: isFix ? null : row.errorFieldsKey,
+             errorDescriptionField: isFix ? null : row.errorDescriptionField,
+             statu_id: isFix ? 2 : row.statu_id
+          }));
          // Modo create u otros: comportamiento normal
          procedure.postItem(updatedRows as Procedure[], false, false).finally(() => {
             procedureCreatedAt.fetchData();
@@ -134,45 +151,47 @@ const FormPageProcedure = () => {
    type SignatureAction = {
       color: string;
       label: string;
-      onClick: () => void;
+      onClick: (rows: Record<string, any>[]) => void;
    } | null;
 
    const rewiev = (): SignatureAction => {
-     
-  if (procedureCreatedAt.editableRows.length > 0 && procedureCreatedAt.editableRows[0].statu_id >= 3) {
-     return null;
-   
-  }
-
       const stored = localStorage.getItem("permisos");
       const parsed = stored ? JSON.parse(stored) : [];
-      console.log("permisos",parsed);
       if (parsed.includes("revisar")) {
          return {
             label: "Marcar como revisado",
             color: "#059669",
-            // icon: <svg>...</svg>,
-            onClick: () => {
-               procedure
-                  .request({
-                     method: "POST",
-                     url: `procedure/changestatus`,
-                     data: {
-                        status: 3,
-                        startDate: String(proccess.orderDate),
-                        departament_id: proccess.departament_id
-                     },
-                     getData: false
-                  })
-                  .finally(() => {
+            onClick: (rows: Record<string, any>[]) => {
+               if (!rows || rows.length === 0) return;
+
+               showConfirmationAlert("Marcar como revisado", {
+                  text: "Los trámites con observaciones serán rechazados y volverán al capturista para su corrección. ¿Desea continuar?"
+               }).then((isConfirmed) => {
+                  if (!isConfirmed) return;
+
+                  // Filas con observaciones → rechazadas (4), sin observaciones → revisadas (3)
+                  const updatedRows = rows.map((row) => {
+                     const hasError = !!row.errorDescriptionField;
+                     // Si tiene observación, marcar la fila como con error (pero sin seleccionar campos)
+                     const errorFields = hasError ? '_rejected_' : null;
+                     return {
+                        ...(row as Procedure),
+                        error: hasError,
+                        errorFieldsKey: errorFields,
+                        errorDescriptionField: row.errorDescriptionField || null,
+                        statu_id: hasError ? 4 : 3,
+                     };
+                  });
+                  procedure.postItem(updatedRows as Procedure[], false, false).finally(() => {
                      proccess.setOpen();
-                     const today = new Date().toISOString().split("T")[0];
                      procedureCreatedAt.fetchData();
+                     const today = new Date().toISOString().split("T")[0];
                      procedure.request({
                         method: "GET",
                         url: `procedure/detailsprocedure/${proccess.orderDate ?? today}/${proccess.departament_id}`
                      });
                   });
+               });
             }
          };
       }
@@ -181,11 +200,10 @@ const FormPageProcedure = () => {
 
 
    const signaturePermissionUser = (): SignatureAction => {
-      const authId = localStorage.getItem("auth_id");
       const userName = localStorage.getItem("name");
 
  
-      if (Number(proccess.user_id) == Number(authId)) {
+      if (Number(proccess.user_id) == Number(localStorage.getItem("auth_id"))) {
          return {
             color: "#030500",
             label: "Firmar",
@@ -194,10 +212,11 @@ const FormPageProcedure = () => {
                   .request({
                      method: "POST",
                      url: "signature/byuser",
-                     // getData: false,
                      getData: true,
                      data: {
-                        user_id: proccess.user_id
+                        // El backend firma con el usuario autenticado; solo enviamos el grupo
+                        startDate: proccess.orderDate ?? new Date().toISOString().split("T")[0],
+                        departament_id: proccess.departament_id
                      }
                   })
                   .then(() => {
@@ -221,6 +240,7 @@ const FormPageProcedure = () => {
       <div style={{ height: "calc(100vh - 80px)" }}>
          {/* {proccess.spinner <Loading>} */}
          <FormTable
+            key={`${procedureCreatedAt.modeTable}-${procedureCreatedAt.editableRows?.length}`}
             columns={COLS}
             errorFieldsKey="errorFieldsKey" // row.errorFields = "boxes,year"
             errorDescriptionField="errorDescriptionField" // editable, primera columna
@@ -235,7 +255,7 @@ const FormPageProcedure = () => {
             initialSize={30}
             chunkSize={2}
 
-            onSubmit={handleSubmit}
+            onSubmit={procedureCreatedAt.modeTable != "delete" ? handleSubmit : undefined}
             showRowNum={true}
          />
       </div>

@@ -211,7 +211,7 @@ export const Header = ({ userName = "Luis Martínez", setOpenSidebar, isSidebarO
 
                      {/* Menu items */}
                      <div style={{ padding: "8px" }}>
-                     
+
                         <div style={{ margin: "6px 0", height: "1px", background: "rgba(155,34,66,0.12)" }} />
 
                         {/* Logout */}

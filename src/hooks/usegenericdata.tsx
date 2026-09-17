@@ -142,10 +142,7 @@ export const useGenericData = <T extends { id?: number }, E = {}, P extends Reco
    );
 const requestWrapped = useCallback(
    async (options: any, callback: any) => {
-      console.log("📦 En requestWrapped - getData recibido:", options.getData);
-      console.log("📦 En requestWrapped - options completas:", options);
       const result = await request(options, callback);
-      console.log("📦 En requestWrapped - después de llamar a request");
       return result;
    },
    [request]

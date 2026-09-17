@@ -10,7 +10,6 @@ import { PermissionRoute } from "../../../../App";
 import PhotoZoom from "../../../components/images/images";
 import useUsersData from "../../../hooks/useUsersData";
 import usePermissionsData from "../../../hooks/usePermissionsData";
-import CustomButtonCrement from "../components/users.button";
 
 const TablePageUsers = () => {
    const users = useUsersData();
@@ -70,7 +69,8 @@ const TablePageUsers = () => {
             },
             {
                field: "role",
-               headerName: "Usuario"
+               headerName: "Rol",
+               renderField: (v) => (v === "Usuario" ? "Enlace" : (v as string))
             }
          ]}
          actions={(row) => (
@@ -124,19 +124,6 @@ const TablePageUsers = () => {
                                  <LuImagePlus />
                               </CustomButton>
                            </Tooltip>
-                           {row.signature && (
-                              <Tooltip content="Posición de la firma">
-                                 <CustomButtonCrement
-                                    // variant=""
-                                    initialValue={row.signature_position}
-                                    debounceMs={500}
-                                    label="Posicion de la firma obligatoria"
-                                    onSubmit={(v) => {
-                                       users.firmedForzed(row.id, v);
-                                    }}
-                                 />
-                              </Tooltip>
-                           )}
                         </PermissionRoute>
                      </>
                   </>

@@ -116,11 +116,10 @@ const hasRoute = (item: SidebarItem): item is SidebarItemWithRoute => {
      () => [
         createRouteItem(1, "usuarios_", "/usuarios", <FaUserTie />, "Usuarios"),
         createRouteItem(2, "tramite_", "/tramite", <RiFileList3Line />, "Tramites"),
-        createRouteItem(3, "tramite_", "/logs", <RiFileList3Line />, "Logs"),
 
         // createRouteItem(2, "tramite_", "/tramite", <RiFileList3Line />, "Tramites"),
 
-        createRouteItem(6, "vista_", "/logs", <FaCode />, "Logs"),
+        createRouteItem(6, "usuarios_crear", "/logs", <FaCode />, "Logs"),
 
         createChildrenItem(7, "catalogo_", "Catálogos", <FaBuildingColumns />, [
            createRouteItem(71, "catalogo_departamentos_", "/catalogos/departamentos", <FaUserDoctor />, "Departamentos")

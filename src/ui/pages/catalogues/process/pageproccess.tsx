@@ -10,6 +10,12 @@ const PageProccess = () => {
    const proccess = useProccessData();
    const departaments = useDepartamentsData();
 
+   // Cargar datos cuando se monta el componente (modal se abre)
+   useEffect(() => {
+      if (proccess.selectDepartament) {
+         proccess.fetchById();
+      }
+   }, []); // Solo al montar
 
    // Actualizar el formulario cuando se abre el modal
    useEffect(() => {

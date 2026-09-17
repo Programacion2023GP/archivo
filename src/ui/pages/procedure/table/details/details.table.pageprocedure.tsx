@@ -26,12 +26,13 @@ const TablePageProcedureDetails = () => {
    const handleDelete = () => {
       proccess.setOpen(true);
       procedureCreatedAt.setExtra("editableRows", procedureData.items);
-      console.log("handle delete");
       procedureCreatedAt.setExtra("modeTable", "delete");
    };
    const isAdmin = localStorage.getItem("role")?.toUpperCase() === "ADMINISTRATIVO";
    const currentStatus = procedureData?.items?.[0]?.status?.toString();
    const isValidStatus = !["ENVIADO", "REVISADO", "FINALIZADO"].includes(String(currentStatus).toUpperCase());
+   // Un trámite revisado o finalizado ya no se puede editar por nadie (ni admin, ni director)
+   const isLockedStatus = ["REVISADO", "FINALIZADO"].includes(String(currentStatus).toUpperCase());
    const showButtons = isAdmin || isValidStatus || procedureCreatedAt.userSignature;
 
 
@@ -57,6 +58,8 @@ const TablePageProcedureDetails = () => {
                               <>
                                  {/* {http://127.0.0.1:8000/api/procedure/detailsprocedure/2026-04-15%2013:10:25/2
 } */}
+                                 {/* No mostrar Editar si el usuario tiene permiso de revisar o si ya está revisado/finalizado */}
+                                 {!isLockedStatus && !localStorage.getItem("permisos")?.includes("revisar") && (
                                  <PermissionRoute requiredPermission={["tramite_actualizar"]}>
                                     <Tooltip content="Editar">
                                        <CustomButton
@@ -82,6 +85,7 @@ const TablePageProcedureDetails = () => {
                                        </CustomButton>
                                     </Tooltip>
                                  </PermissionRoute>
+                                 )}
 
                                  {signaturePermissionUser() && (
                                     <CustomButton
@@ -130,11 +134,13 @@ const TablePageProcedureDetails = () => {
                                        </Tooltip>
                                     )}
                                  </PermissionRoute>
-                                    <Tooltip content="Revision">
+                                    {(String(currentStatus).toLowerCase() === "enviado" || procedureCreatedAt.userSignature) && (
+                                    <Tooltip content={procedureCreatedAt.userSignature ? "Firmar" : "Revision"}>
                                        <CustomButton size="lg" color="pink" variant="solid" onClick={handleDelete}>
                                           <BsCheck2Circle />
                                        </CustomButton>
                                     </Tooltip>
+                                    )}
                               </>
                            )
                         );
@@ -225,7 +231,19 @@ const TablePageProcedureDetails = () => {
                },
 
                { field: "description", headerName: "Descripción" },
-               { field: "observation", headerName: "Observación", visibility: "expanded" }
+               { field: "observation", headerName: "Observación", visibility: "expanded" },
+               {
+                  field: "errorDescriptionField",
+                  headerName: "Motivo rechazo",
+                  visibility: "expanded",
+                  renderField: (v) => v ? (
+                     <span style={{ color: "#dc2626", fontWeight: 600 }}>
+                        {v}
+                     </span>
+                  ) : (
+                     <span style={{ color: "#9ca3af" }}>—</span>
+                  )
+               }
             ]}
             conditionExcel={"tramite_exportar"}
             paginate={[10, 20, 30]}

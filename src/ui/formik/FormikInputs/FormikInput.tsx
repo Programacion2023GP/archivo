@@ -158,13 +158,20 @@ export function FormikInput(props: FormikInputProps) {
 
    const formik = useFormikContext<Record<string, any>>();
    const [isFocused, setIsFocused] = useState(false);
-   const [localValue, setLocalValue] = useState<string>("");
+   const [localValue, setLocalValue] = useState<string>(formik.values?.[name] ?? "");
    const debounceTimer = useRef<number>(null);
+   const modifiedTimer = useRef<number>(null);
+   const lastSyncedValue = useRef<string>(formik.values?.[name] ?? "");
 
+   // Solo sincronizar cuando el valor externo cambia (ej: al editar un registro existente)
+   // NO watches all formik.values — only the specific field
    useEffect(() => {
-      const value = formik.values?.[name];
-      setLocalValue(value ?? "");
-   }, [formik.values, name]);
+      const value = formik.values?.[name] ?? "";
+      if (value !== lastSyncedValue.current) {
+         lastSyncedValue.current = value;
+         setLocalValue(value);
+      }
+   }, [formik.values?.[name], name]);
 
    const error = formik.touched[name] && formik.errors[name] ? String(formik.errors[name]) : null;
    const hasValue = localValue.length > 0;
@@ -180,9 +187,6 @@ export function FormikInput(props: FormikInputProps) {
       const updateField = () => {
          formik.setFieldValue(name, processed);
          onChange?.(processed);
-         if (handleModified) {
-            handleModified({ ...formik.values, [name]: processed }, formik.setFieldValue);
-         }
       };
 
       if (debounceMs) {
@@ -191,15 +195,24 @@ export function FormikInput(props: FormikInputProps) {
       } else {
          updateField();
       }
+
+      // handleModified siempre con debounce para evitar llamadas API en cada tecla
+      if (handleModified) {
+         if (modifiedTimer.current) clearTimeout(modifiedTimer.current);
+         modifiedTimer.current = window.setTimeout(() => {
+            handleModified({ ...formik.values, [name]: processed }, formik.setFieldValue);
+         }, 400);
+      }
    };
 
    const handleBlur = (e: React.FocusEvent<HTMLInputElement>) => {
       setIsFocused(false);
       formik.setFieldTouched(name, true);
       onBlur?.(e);
-      if (handleModified && !debounceMs) {
-         handleModified(formik.values, formik.setFieldValue);
-      }
+      // En blur, sincronizar inmediatamente (cancelar debounce pendiente)
+      if (debounceTimer.current) clearTimeout(debounceTimer.current);
+      if (modifiedTimer.current) clearTimeout(modifiedTimer.current);
+      formik.setFieldValue(name, localValue);
    };
 
    if (disabled) {
@@ -310,13 +323,17 @@ export function FormikTextArea(props: FormikTextAreaProps) {
 
    const formik = useFormikContext<Record<string, any>>();
    const [isFocused, setIsFocused] = useState(false);
-   const [localValue, setLocalValue] = useState("");
+   const [localValue, setLocalValue] = useState(formik.values?.[name] ?? "");
    const debounceTimer = useRef<number>(null);
+   const lastSyncedValue = useRef<string>(formik.values?.[name] ?? "");
 
    useEffect(() => {
-      const value = formik.values?.[name];
-      setLocalValue(value ?? "");
-   }, [formik.values, name]);
+      const value = formik.values?.[name] ?? "";
+      if (value !== lastSyncedValue.current) {
+         lastSyncedValue.current = value;
+         setLocalValue(value);
+      }
+   }, [formik.values?.[name], name]);
 
    const error = formik.touched[name] && formik.errors[name] ? String(formik.errors[name]) : null;
    const hasValue = localValue.length > 0;

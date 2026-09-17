@@ -17,7 +17,7 @@ const findById = (items: any[], id: number | string): Proccess => {
    return null;
 };
 export const accessCreateProcedure = (items: ProceduresCreatedAt[], procedure?: Proccess[], value?: number): boolean => {
-   const isAdmin = localStorage.getItem("role") === "administrador";
+   const isAdmin = localStorage.getItem("role") === "administrativo";
    // console.log("aas", availableIds);
    if (isAdmin && procedure && procedure.length > 0) {
 
@@ -27,11 +27,9 @@ export const accessCreateProcedure = (items: ProceduresCreatedAt[], procedure?: 
 
          // Aquí puedes usar foundObject para lo que necesites
          if (foundObject) {
-            console.log("cargando datos", foundObject);
             const today = new Date().toISOString().split("T")[0];
 
             const hasDuplicate = items.some((it) => it.departament_id == foundObject.departament_id && it.order_date && it.order_date.split(" ")[0] == today);
-            console.log(items.filter((it) => it.departament_id == foundObject.departament_id && it.order_date && it.order_date.split(" ")[0] == today));
             if (hasDuplicate) {
 
          showToast("No se puede generar. Ya existe un registro para hoy", "info");

@@ -158,8 +158,8 @@ const T = {
    sans: "'IBM Plex Sans',system-ui,sans-serif"
 } as const;
 
-const ROW_H = 34;
-const HDR_H = 38;
+const ROW_H = 40;
+const HDR_H = 42;
 const FILL_SZ = 7;
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -334,12 +334,13 @@ const iStyle = (editing: boolean, align: "left" | "center" | "right" = "left"): 
    border: "none",
    outline: "none",
    background: "transparent",
-   fontSize: 12.5,
-   fontFamily: T.mono,
+   fontSize: 13,
+   fontFamily: T.sans,
    padding: "0 10px",
    textAlign: align,
    cursor: editing ? "text" : "default",
-   color: editing ? T.ink0 : T.ink1
+   color: editing ? T.ink0 : T.ink1,
+   letterSpacing: "0.01em"
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -379,8 +380,17 @@ const TextCell = memo(({ name, col, isEditing }: { name: string; col: TextCol; i
 const DateCell = memo(({ name, col, isEditing }: { name: string; col: DateCol; isEditing: boolean }) => {
    const [field, , helpers] = useField<any>(name);
    const ref = useRef<HTMLInputElement>(null);
+   const openedRef = useRef(false);
    useEffect(() => {
-      if (isEditing) ref.current?.focus();
+      if (isEditing && ref.current) {
+         ref.current.focus();
+         // Abrir el date picker automáticamente al entrar en modo edición (solo la primera vez)
+         if (!openedRef.current) {
+            openedRef.current = true;
+            try { ref.current.showPicker?.(); } catch (_) {}
+         }
+      }
+      if (!isEditing) openedRef.current = false;
    }, [isEditing]);
    return (
       <div style={{ position: "relative", width: "100%", height: "100%", display: "flex", alignItems: "center" }}>
@@ -392,16 +402,16 @@ const DateCell = memo(({ name, col, isEditing }: { name: string; col: DateCol; i
             name={field.name}
             onBlur={field.onBlur}
             readOnly={!isEditing}
-            onChange={(e) => helpers.setValue(e.target.value)}
-            onMouseDown={(e) => {
-               if (!isEditing) e.preventDefault();
+            onChange={(e) => {
+               helpers.setValue(e.target.value);
             }}
             style={
                {
                   ...iStyle(isEditing, col.align),
                   colorScheme: "light",
                   color: field.value ? T.ink1 : T.ink3,
-                  WebkitAppearance: isEditing ? undefined : "none"
+                  WebkitAppearance: isEditing ? undefined : "none",
+                  cursor: isEditing ? "pointer" : "default"
                } as React.CSSProperties
             }
          />
@@ -500,6 +510,15 @@ const AutocompleteCell = memo(
       const [filtered, setFiltered] = useState(col.options);
       const [flat, setFlat] = useState(() => flattenTree(col.options, 0, col.selectableKey));
       const [query, setQuery] = useState("");
+      // Sync options when col.options changes (e.g. async data loaded after mount)
+      useEffect(() => {
+         if (!col.options?.length) return;
+         // Always reset to full list — the query-sync effect below will update the input text.
+         // We can't filter by `query` here because on first load `query` may hold a raw ID
+         // (e.g. "5") that doesn't match any label, resulting in an empty flat list.
+         setFiltered(col.options);
+         setFlat(flattenTree(col.options, 0, col.selectableKey));
+      }, [col.options, col.selectableKey]);
       const [activeIdx, setActiveIdx] = useState(-1);
       const [open, setOpen] = useState(false);
       const [dropPos, setDropPos] = useState({ top: 0, left: 0, w: 0 });
@@ -741,12 +760,63 @@ const AutocompleteCell = memo(
                      flat.map(({ item, depth, isGroup, selectable }, i) => {
                         const hl = activeIdx === i;
                         const label = String(item[col.labelKey]);
+                        const classCode = item.classification_code || "";
+
+                        // Departamento / Subdepartamento (no seleccionable)
+                        if (!selectable && isGroup) {
+                           return (
+                              <div
+                                 key={i}
+                                 ref={(el) => { optRefs.current[i] = el; }}
+                                 onMouseDown={(e) => e.preventDefault()}
+                                 onMouseEnter={() => setActiveIdx(i)}
+                                 style={{
+                                    display: "flex",
+                                    alignItems: "center",
+                                    gap: 8,
+                                    padding: `6px 10px 6px ${8 + depth * 16}px`,
+                                    borderRadius: 6,
+                                    cursor: "default",
+                                    background: hl ? "rgba(107,114,128,0.06)" : "#f9fafb",
+                                    borderLeft: `3px solid ${hl ? "#9ca3af" : "#e5e7eb"}`,
+                                    marginTop: depth === 0 ? 2 : 0,
+                                    opacity: 0.85,
+                                 }}
+                              >
+                                 <div style={{
+                                    width: 22, height: 22, borderRadius: 5,
+                                    background: "#f3f4f6", border: "1px solid #e5e7eb",
+                                    display: "flex", alignItems: "center", justifyContent: "center",
+                                    flexShrink: 0,
+                                 }}>
+                                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#9ca3af" strokeWidth="2">
+                                       <path d="M3 7a2 2 0 012-2h4l2 2h8a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2V7z" />
+                                    </svg>
+                                 </div>
+                                 <div style={{ flex: 1, minWidth: 0 }}>
+                                    <span style={{
+                                       fontSize: 11, fontFamily: T.sans, fontWeight: 700,
+                                       color: "#6b7280", letterSpacing: "0.03em",
+                                       textTransform: "uppercase", display: "block", lineHeight: 1.2,
+                                    }}>
+                                       {label}
+                                    </span>
+                                    <span style={{ fontSize: 9, fontFamily: T.mono, color: "#9ca3af" }}>
+                                       Departamento
+                                    </span>
+                                 </div>
+                                 <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#d1d5db" strokeWidth="2" style={{ flexShrink: 0 }}>
+                                    <circle cx="12" cy="12" r="10" /><line x1="4.93" y1="4.93" x2="19.07" y2="19.07" />
+                                 </svg>
+                              </div>
+                           );
+                        }
+
+                        // Trámite / Subtrámite (seleccionable)
                         return (
                            <div
                               key={i}
-                              ref={(el) => {
-                                 optRefs.current[i] = el;
-                              }}
+                              ref={(el) => { optRefs.current[i] = el; }}
                               onMouseDown={(e) => e.preventDefault()}
                               onClick={() => (selectable ? select(item) : undefined)}
                               onMouseEnter={() => selectable && setActiveIdx(i)}
@@ -754,45 +824,69 @@ const AutocompleteCell = memo(
                                  display: "flex",
                                  alignItems: "center",
                                  gap: 8,
-                                 padding: `5px 10px 5px ${8 + depth * 16}px`,
-                                 borderRadius: 5,
+                                 padding: `6px 10px 6px ${8 + depth * 16}px`,
+                                 borderRadius: 6,
                                  cursor: selectable ? "pointer" : "default",
-                                 background: hl ? T.indDim : "transparent"
+                                 background: hl ? T.indDim : "transparent",
+                                 borderLeft: `3px solid ${hl ? T.ind : depth > 0 ? "#c7d2fe" : "transparent"}`,
+                                 marginTop: depth === 0 && isGroup ? 4 : 0,
                               }}
+                              {...(selectable ? { onMouseEnter: () => setActiveIdx(i) } : {})}
                            >
                               {isGroup ? (
                                  <>
-                                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke={T.ind} strokeWidth="2" style={{ flexShrink: 0, opacity: 0.7 }}>
-                                       <path d="M3 7a2 2 0 012-2h4l2 2h8a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2V7z" />
-                                    </svg>
-                                    <span
-                                       style={{
-                                          fontSize: 11,
-                                          fontFamily: T.sans,
-                                          fontWeight: 600,
-                                          color: T.ink2,
-                                          letterSpacing: "0.04em",
-                                          textTransform: "uppercase"
-                                       }}
-                                    >
-                                       {label}
-                                    </span>
+                                    <div style={{
+                                       width: 22, height: 22, borderRadius: 5,
+                                       background: hl ? "rgba(79,70,229,0.12)" : "#eef2ff",
+                                       border: `1px solid ${hl ? "rgba(79,70,229,0.25)" : "#c7d2fe"}`,
+                                       display: "flex", alignItems: "center", justifyContent: "center",
+                                       flexShrink: 0,
+                                    }}>
+                                       <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke={hl ? T.ind : "#6366f1"} strokeWidth="2.2">
+                                          <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" /><polyline points="14 2 14 8 20 8" />
+                                       </svg>
+                                    </div>
+                                    <div style={{ flex: 1, minWidth: 0 }}>
+                                       <span style={{
+                                          fontSize: 12, fontFamily: T.sans, fontWeight: 600,
+                                          color: hl ? T.ind : T.ink0,
+                                          display: "block", lineHeight: 1.2,
+                                          overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
+                                       }}>
+                                          {highlight(label, query)}
+                                       </span>
+                                       {classCode && (
+                                          <span style={{ fontSize: 9.5, fontFamily: T.mono, color: T.ind, opacity: 0.7 }}>
+                                             {classCode}
+                                          </span>
+                                       )}
+                                    </div>
                                  </>
                               ) : (
                                  <>
-                                    <div style={{ width: 4, height: 4, borderRadius: "50%", background: hl ? T.ind : T.line2, flexShrink: 0 }} />
-                                    <span
-                                       style={{
-                                          fontSize: 12.5,
-                                          fontFamily: T.mono,
-                                          color: hl ? T.ind : selectable ? T.ink1 : T.ink3,
-                                          overflow: "hidden",
-                                          textOverflow: "ellipsis",
-                                          whiteSpace: "nowrap"
-                                       }}
-                                    >
-                                       {highlight(label, query)}
-                                    </span>
+                                    <div style={{
+                                       width: 6, height: 6, borderRadius: "50%",
+                                       background: hl ? T.ind : selectable ? "#a5b4fc" : T.line2,
+                                       flexShrink: 0,
+                                       border: hl ? `1.5px solid ${T.ind}` : "none",
+                                    }} />
+                                    <div style={{ flex: 1, minWidth: 0 }}>
+                                       <span
+                                          style={{
+                                             fontSize: 12.5, fontFamily: T.mono,
+                                             color: hl ? T.ind : selectable ? T.ink1 : T.ink3,
+                                             overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
+                                             display: "block", lineHeight: 1.2,
+                                          }}
+                                       >
+                                          {highlight(label, query)}
+                                       </span>
+                                       {classCode && (
+                                          <span style={{ fontSize: 9.5, fontFamily: T.mono, color: T.ind, opacity: 0.6 }}>
+                                             {classCode}
+                                          </span>
+                                       )}
+                                    </div>
                                  </>
                               )}
                            </div>
@@ -907,16 +1001,19 @@ const CheckboxGroupCell = memo(
          parts[parts.length - 1] = item.field;
          return parts.join(".");
       };
-      const getVal = (item: CheckboxGroupCol["items"][0]) => {
+      const getVal = useCallback((item: CheckboxGroupCol["items"][0]) => {
          const fn = getFieldName(item);
-         return !!fn.split(".").reduce((v: any, k) => v?.[k], values);
-      };
-      const toggle = (item: CheckboxGroupCol["items"][0]) => {
+         const val = fn.split(".").reduce((v: any, k) => v?.[k], values);
+         // Soportar boolean true/false y tambien "1"/"0"
+         return val === true || val === 1 || val === "1";
+      }, [values, name]);
+      const toggle = useCallback((item: CheckboxGroupCol["items"][0]) => {
          if (disabled) return;
          const fn = getFieldName(item);
-         setFieldValue(fn, !getVal(item));
+         const currentVal = getVal(item);
+         setFieldValue(fn, !currentVal);
          setFieldTouched(fn, true);
-      };
+      }, [disabled, values, name, setFieldValue, setFieldTouched, getVal]);
       const handleKey = (e: React.KeyboardEvent, idx: number) => {
          if (disabled) return;
          if (e.ctrlKey || e.metaKey) {
@@ -1221,14 +1318,14 @@ const Cell = memo(
       };
 
       const handleMouseDown = (e: React.MouseEvent) => {
-         e.preventDefault();
-         if (isDeleteMode && !isDescriptionCol) {
-            toggleCellError(r, col.field);
-            onCellAction(r, c, "click");
-         } else {
-            if (isDate && isEditing) return;
-            onCellAction(r, c, "click");
+         // Para celdas de fecha, permitir que el date picker nativo se abra
+         if (isDate) {
+            if (!isEditing) onCellAction(r, c, "click");
+            containerRef.current?.focus();
+            return;
          }
+         e.preventDefault();
+         onCellAction(r, c, "click");
          if (!isChkG) containerRef.current?.focus();
       };
 
@@ -1592,8 +1689,7 @@ const Header = memo(
       const isFixErrorsMode = mode === "fixerrors";
       const { toggleColError, isColAllError } = useErrorCtx();
 
-      return (
-         <thead style={{ position: "sticky", top: 0, zIndex: 10 }}>
+      return (                         <thead style={{ position: "sticky", top: 0, zIndex: 10 }}>
             <tr>
                {showRowNum && (
                   <th
@@ -1691,7 +1787,6 @@ const Header = memo(
                         key={col.field}
                         onMouseDown={(e) => {
                            e.preventDefault();
-                           if (isDeleteMode) toggleColError(col.field, totalRows);
                            onColClick(c);
                         }}
                         title={
@@ -1898,9 +1993,9 @@ const FixErrorsSaveBanner = memo(({ pending, onDismiss }: { pending: number; onD
          <path d="M8 6v3.5" stroke={T.amb} strokeWidth="1.5" strokeLinecap="round" />
          <circle cx="8" cy="11.5" r="0.75" fill={T.amb} />
       </svg>
-      <span style={{ fontSize: 12, fontFamily: T.sans, fontWeight: 600, color: "#92400e" }}>
-         No puedes guardar: faltan corregir <strong style={{ color: T.ros }}>{pending}</strong> campo{pending > 1 ? "s" : ""} con error
-      </span>
+       <span style={{ fontSize: 12, fontFamily: T.sans, fontWeight: 600, color: "#92400e" }}>
+          Modifica al menos un campo para poder guardar
+       </span>
       <button
          type="button"
          onClick={onDismiss}
@@ -1950,7 +2045,7 @@ const InnerTable = ({
    initialErrorMap?: Map<number, Set<string>>;
    toolbarActions?: ToolbarAction[];
 }) => {
-   const { values, setFieldValue, isSubmitting } = useFormikContext<{ rows: any[] }>();
+   const { values, setFieldValue, isSubmitting, dirty } = useFormikContext<{ rows: any[] }>();
    const navRef = useRef<NavState>({ r: 0, c: 0, mode: "nav" });
    const [, bumpNav] = useReducer((x: number) => x + 1, 0);
    const [selected, setSelected] = useState<Set<number>>(new Set());
@@ -1959,6 +2054,7 @@ const InnerTable = ({
    const fillRef = useRef<FillState | null>(null);
    const [errorMap, setErrorMap] = useState<Map<number, Set<string>>>(() => initialErrorMap ?? new Map());
    const [correctedCells, setCorrectedCells] = useState<Map<number, Set<string>>>(new Map());
+   const [hasEdit, setHasEdit] = useState(false);
    const containerRef = useRef<HTMLDivElement>(null);
    const tableRef = useRef<HTMLTableElement>(null);
    const busyRef = useRef(false);
@@ -2516,8 +2612,6 @@ const InnerTable = ({
                if (isDeleteMode) {
                   if (c === -1 && hasDescCol) {
                      mt(r, c, "edit");
-                  } else if (c >= 0 && c < cols.length) {
-                     toggleCellError(r, cols[c].field);
                   }
                   return;
                }
@@ -2555,7 +2649,6 @@ const InnerTable = ({
                   return;
                }
                if (isDeleteMode && c >= 0 && c < cols.length) {
-                  toggleCellError(r, cols[c].field);
                   return;
                }
                if (c < 0 || c >= cols.length) return;
@@ -2733,17 +2826,17 @@ const InnerTable = ({
                      <div
                         style={{
                            flexShrink: 0,
-                           height: 36,
+                           height: 38,
                            display: "flex",
                            alignItems: "center",
                            justifyContent: "space-between",
-                           padding: "0 12px",
-                           background: T.bg3,
+                           padding: "0 14px",
+                           background: "linear-gradient(to right, #fafafa, #f5f5f5)",
                            borderBottom: `1px solid ${T.line1}`,
                            userSelect: "none"
                         }}
                      >
-                        <div style={{ display: "flex", alignItems: "center", overflow: "hidden", flex: 1 }}>
+                        <div style={{ display: "flex", alignItems: "center", overflow: "hidden", flex: 1, gap: 1 }}>
                            {shortcuts.map(([k, l]) => (
                               <div
                                  key={k}
@@ -2751,9 +2844,8 @@ const InnerTable = ({
                                     display: "flex",
                                     alignItems: "center",
                                     gap: 4,
-                                    padding: "0 7px",
-                                    borderRight: `1px solid ${T.line0}`,
-                                    height: 20,
+                                    padding: "0 8px",
+                                    height: 22,
                                     flexShrink: 0
                                  }}
                               >
@@ -2761,21 +2853,22 @@ const InnerTable = ({
                                     style={{
                                        display: "inline-flex",
                                        alignItems: "center",
-                                       height: 15,
-                                       padding: "0 4px",
-                                       background: T.bg0,
+                                       height: 17,
+                                       padding: "0 5px",
+                                       background: "#fff",
                                        border: `1px solid ${T.line2}`,
                                        borderBottom: `2px solid ${T.line2}`,
-                                       borderRadius: 3,
-                                       fontSize: 8.5,
+                                       borderRadius: 4,
+                                       fontSize: 9,
                                        fontFamily: T.mono,
                                        color: T.ink1,
-                                       whiteSpace: "nowrap"
+                                       whiteSpace: "nowrap",
+                                       boxShadow: "0 1px 1px rgba(0,0,0,0.04)"
                                     }}
                                  >
                                     {k}
                                  </kbd>
-                                 <span style={{ fontSize: 8.5, fontFamily: T.mono, color: T.ink2, whiteSpace: "nowrap" }}>{l}</span>
+                                 <span style={{ fontSize: 9, fontFamily: T.sans, color: T.ink2, whiteSpace: "nowrap", fontWeight: 500 }}>{l}</span>
                               </div>
                            ))}
                         </div>
@@ -2880,34 +2973,33 @@ const InnerTable = ({
                               {fill ? "FILL" : navRef.current.mode === "edit" ? "EDIT" : "NAV"}
                            </span>
 
-                           {/* ── Guardar (fixerrors: blocked if pending > 0) ── */}
-                           {hasSubmit && mode !== "view" && (
-                              <button
-                                 type={isFixErrorsMode && pendingCount > 0 ? "button" : "submit"}
-                                 disabled={isSubmitting}
-                                 onClick={isFixErrorsMode && pendingCount > 0 ? () => setShowFixBanner(true) : undefined}
-                                 style={{
-                                    display: "inline-flex",
-                                    alignItems: "center",
-                                    gap: 6,
-                                    height: 26,
-                                    marginLeft: 2,
-                                    padding: "0 18px",
-                                    background: isSubmitting ? T.bg3 : isFixErrorsMode && pendingCount > 0 ? T.bg4 : T.ind,
-                                    border: `1px solid ${isSubmitting ? T.line2 : isFixErrorsMode && pendingCount > 0 ? T.line2 : T.ind}`,
-                                    borderRadius: 5,
-                                    color: isSubmitting ? T.ink2 : isFixErrorsMode && pendingCount > 0 ? T.ink2 : "#fff",
-                                    fontSize: 12,
-                                    fontFamily: T.sans,
-                                    fontWeight: 600,
-                                    cursor: isSubmitting ? "not-allowed" : isFixErrorsMode && pendingCount > 0 ? "not-allowed" : "pointer",
-                                    boxShadow: isSubmitting || (isFixErrorsMode && pendingCount > 0) ? "none" : "0 1px 3px rgba(79,70,229,0.25)"
-                                 }}
-                                 title={
-                                    isFixErrorsMode && pendingCount > 0 ? `Faltan corregir ${pendingCount} campo${pendingCount > 1 ? "s" : ""} con error` : undefined
-                                 }
-                              >
-                                 {isSubmitting && (
+                            {/* ── Guardar (fixerrors: solo si hubo cambios) ── */}
+                            {hasSubmit && mode !== "view" && (
+                               <button
+                                  type={isFixErrorsMode && !dirty ? "button" : "submit"}
+                                  disabled={isSubmitting}
+                                  onClick={isFixErrorsMode && !dirty ? () => setShowFixBanner(true) : undefined}
+                                  style={{
+                                     display: "inline-flex",
+                                     alignItems: "center",
+                                     gap: 6,
+                                     height: 28,
+                                     marginLeft: 4,
+                                     padding: "0 20px",
+                                     background: isSubmitting ? T.bg3 : isFixErrorsMode && !dirty ? T.bg4 : "linear-gradient(135deg, #5b5bd6, #4f46e5)",
+                                     border: `1px solid ${isSubmitting ? T.line2 : isFixErrorsMode && !dirty ? T.line2 : "#4338ca"}`,
+                                     borderRadius: 6,
+                                     color: isSubmitting ? T.ink2 : isFixErrorsMode && !dirty ? T.ink2 : "#fff",
+                                     fontSize: 12,
+                                     fontFamily: T.sans,
+                                     fontWeight: 600,
+                                     cursor: isSubmitting ? "not-allowed" : isFixErrorsMode && !dirty ? "not-allowed" : "pointer",
+                                     boxShadow: isSubmitting || (isFixErrorsMode && !dirty) ? "none" : "0 2px 6px rgba(79,70,229,0.3)",
+                                     letterSpacing: "0.02em"
+                                  }}
+                                  title={isFixErrorsMode && !dirty ? "Modifica al menos un campo para poder guardar" : undefined}
+                               >
+                                  {isSubmitting && (
                                     <div
                                        style={{
                                           width: 10,
@@ -3033,12 +3125,12 @@ const InnerTable = ({
                      <div
                         style={{
                            flexShrink: 0,
-                           height: 34,
+                           height: 36,
                            display: "flex",
                            alignItems: "center",
                            justifyContent: "space-between",
-                           padding: "0 12px",
-                           background: T.bg3,
+                           padding: "0 14px",
+                           background: "linear-gradient(to right, #f8f8f8, #f3f3f3)",
                            borderTop: `1px solid ${T.line1}`
                         }}
                      >
@@ -3084,19 +3176,20 @@ const InnerTable = ({
                                  type="button"
                                  onClick={() => insertRow()}
                                  style={{
-                                    marginLeft: 8,
+                                    marginLeft: 10,
                                     display: "inline-flex",
                                     alignItems: "center",
                                     gap: 5,
-                                    height: 22,
-                                    padding: "0 9px",
-                                    background: "transparent",
+                                    height: 24,
+                                    padding: "0 10px",
+                                    background: "#fff",
                                     border: `1px solid ${T.line2}`,
-                                    borderRadius: 4,
+                                    borderRadius: 5,
                                     fontSize: 10.5,
                                     fontFamily: T.sans,
                                     color: T.ink1,
-                                    cursor: "pointer"
+                                    cursor: "pointer",
+                                    boxShadow: "0 1px 2px rgba(0,0,0,0.04)"
                                  }}
                                  onMouseEnter={(e) => {
                                     const b = e.currentTarget as HTMLButtonElement;
@@ -3334,23 +3427,23 @@ const FormTable = forwardRef<FormTableHandle, FormTableProps>((props, ref) => {
          <style>{`
             @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap');
             *,*::before,*::after { box-sizing: border-box; }
-            ::-webkit-scrollbar { width: 6px; height: 6px; }
-            ::-webkit-scrollbar-track { background: ${T.bg2}; }
-            ::-webkit-scrollbar-thumb { background: ${T.line2}; border-radius: 3px; }
-            ::-webkit-scrollbar-thumb:hover { background: ${T.ink3}; }
-            ::-webkit-scrollbar-corner { background: ${T.bg2}; }
+            ::-webkit-scrollbar { width: 8px; height: 8px; }
+            ::-webkit-scrollbar-track { background: #f5f5f5; }
+            ::-webkit-scrollbar-thumb { background: #d1d5db; border-radius: 4px; }
+            ::-webkit-scrollbar-thumb:hover { background: #9ca3af; }
+            ::-webkit-scrollbar-corner { background: #f5f5f5; }
          `}</style>
          <div
             style={{
                background: T.bg0,
                border: `1px solid ${T.line2}`,
-               borderRadius: 10,
+               borderRadius: 12,
                overflow: "hidden",
                display: "flex",
                flexDirection: "column",
                height: "100%",
                fontFamily: T.mono,
-               boxShadow: "0 1px 3px rgba(0,0,0,0.06),0 4px 16px rgba(0,0,0,0.06)"
+               boxShadow: "0 1px 3px rgba(0,0,0,0.06),0 8px 24px rgba(0,0,0,0.08)"
             }}
          >
             <Formik

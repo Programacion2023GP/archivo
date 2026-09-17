@@ -34,7 +34,7 @@ const ExcelPageProcedure = () => {
    // }, []);
 
    const FONDO = "R. AYUNTAMIENTO DE GOMEZ PALACIO, DGO";
-   const SECCION = procedureData?.items[0]?.departament || "";
+   const SECCION = procedureData?.items[0]?.seccion || "";
    const REVISO = procedureData?.items[0]?.reviewed_user || "";
 
    const SERIE = procedureData?.items[0]?.serie || "";
@@ -310,11 +310,11 @@ const revisoSignature = procedureData?.items[0]?.["reviewed_signature_b64"] || "
                      <Cell border={T} fontSize={9} value={e?.administrative_value ? "✓" : "X"} />
                      <Cell border={T} fontSize={9} value={e?.accounting_fiscal_value ? "✓" : "X"} />
                      <Cell border={T} fontSize={9} value={e?.legal_value ? "✓" : "X"} />
-                     <Cell border={T} fontSize={9} value={e?.retention_period_current ? "✓" : "X"} />
-                     <Cell border={T} fontSize={9} value={e?.retention_period_archive ? "✓" : "X"} />
-                     <Cell border={T} fontSize={9} value={e?.location_building ? "✓" : "X"} />
-                     <Cell border={T} fontSize={9} value={e?.location_furniture ? "✓" : "X"} />
-                     <Cell border={T} fontSize={9} value={e?.location_position ? "✓" : "X"} />
+                     <Cell border={T} fontSize={9} value={e?.retention_period_current} />
+                     <Cell border={T} fontSize={9} value={e?.retention_period_archive} />
+                     <Cell border={T} fontSize={9} value={e?.location_building} />
+                     <Cell border={T} fontSize={9} value={e?.location_furniture} />
+                     <Cell border={T} fontSize={9} value={e?.location_position} />
                      <Cell border={T} fontSize={9} align="left" wrap value={e?.observation} />
                   </Row>
                ))}
@@ -326,7 +326,7 @@ const revisoSignature = procedureData?.items[0]?.["reviewed_signature_b64"] || "
 
                <Spacer height={10} />
                <Row height={20}>
-                  <Empty span={14} />
+                  <Empty span={13} />
                   <Cell span={6} bold fontSize={8} border={{ all: R }}>
                      {`FECHA DE ENTREGA: ${FECHA_ENTREGA}  (23)`}
                   </Cell>

@@ -118,12 +118,8 @@ const TablePageDepartaments = () => {
             <>
                <Tooltip content={`Tramites de ${row.name}`}>
                   <CustomButton
-                     onClick={() => {
+                     onClick={() => {                        departaments.handleChangeItem(row);
                         process.fetchById(row.id);
-                        // departaments.handleChangeItem({
-                        //    ...row
-                        // });
-                         
                         departaments.setProcedureOpen();
                      }}
                      color="purple"

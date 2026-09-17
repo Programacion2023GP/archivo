@@ -13,6 +13,7 @@ export type Procedure = {
    at: number;
    ac: number;
    departament?: string;
+   seccion?: string;
    serie?: string;
 
    // children_recursive: any[];
@@ -41,12 +42,12 @@ export type Procedure = {
    accounting_fiscal_value?: boolean;
    legal_value?: boolean;
 
-   retention_period_current?: boolean;
-   retention_period_archive?: boolean;
+   retention_period_current?: number;
+   retention_period_archive?: number;
 
-   location_building?: boolean;
-   location_furniture?: boolean;
-   location_position?: boolean;
+   location_building?: string;
+   location_furniture?: string;
+   location_position?: string;
 
    errorFieldsKey?: string;
    errorDescriptionField?: string;
